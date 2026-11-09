@@ -28,6 +28,11 @@ jobs:
           npx cap add android
           npx cap sync android
 
+      - name: 고정 서명키 적용 (업데이트 설치 시 데이터 유지)
+        run: |
+          mkdir -p ~/.android
+          base64 -d debug.keystore.b64 > ~/.android/debug.keystore
+
       - name: APK 빌드
         working-directory: android
         run: |

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="app-version" content="8">
+<meta name="app-version" content="9">
 <title>운행일지</title>
 <style>
   :root {
@@ -39,17 +39,42 @@
     }
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; height: 100%; }
+  html, body { margin: 0; }
   body {
     background: var(--bg);
     color: var(--ink);
     font-family: -apple-system, "Noto Sans KR", "Roboto", sans-serif;
-    display: flex;
-    flex-direction: column;
-    padding-top: calc(env(safe-area-inset-top, 0px) + 28px);
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
     user-select: none;
   }
+  /* 첫 화면: 달력만 꽉 차게. 정산서는 아래로 스크롤해야 보임 */
+  .screen {
+    height: var(--screenH, 100vh);
+    display: flex; flex-direction: column;
+    padding-top: calc(env(safe-area-inset-top, 0px) + 28px);
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+  }
+  .below { padding: 4px 12px calc(env(safe-area-inset-bottom, 0px) + 28px); }
+  .sectitle { font-size: 16px; font-weight: 700; margin: 20px 4px 10px; }
+  .card { background: var(--surface); border-radius: 18px; padding: 14px 16px; margin-bottom: 12px; }
+  .below input {
+    width: 100%; padding: 12px; font-size: 18px; font-weight: 700; text-align: right;
+    border: 1.5px solid var(--line); border-radius: 14px;
+    background: var(--bg); color: var(--ink); user-select: text;
+  }
+  .below input:focus { outline: none; border-color: var(--accent); }
+  .below .calc .row.input input { width: 150px; padding: 9px 10px; font-size: 17px; margin: 0; }
+  .below .adv label { font-size: 13px; color: var(--muted); }
+  .below .adv input { margin: 6px 0 10px; }
+  .below .gasnote { margin: 8px 0 0; }
+  .below .sub { margin-top: 10px; }
+  .vtitle { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+  .vsum { text-align: center; padding: 14px 8px 4px; }
+  .vsum .vl { font-size: 12px; color: var(--muted); }
+  .vsum .vv { font-size: 26px; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .vsum .vv.neg { color: var(--sun); }
+  .vsum .vs { font-size: 13px; color: var(--muted); margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .vsum .vs b { color: var(--ink); }
+  .vsum .vn { font-size: 11px; color: var(--muted); margin-top: 8px; }
 
   header { padding: 8px 16px 10px; }
   .nav { display: flex; align-items: center; justify-content: space-between; }
@@ -100,7 +125,7 @@
   .cell:active { transform: scale(0.96); }
 
   /* 페이스 카드 */
-  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 0 12px 8px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 0 0 8px; }
   .stats[hidden] { display: none; }
   .stat {
     background: var(--surface); border: 0; border-radius: 12px; padding: 8px 4px;
@@ -243,71 +268,40 @@
 </head>
 <body>
 
-<div class="update" id="update" hidden>
-  <span id="updText"></span>
-  <button id="updBtn">업데이트</button>
-</div>
-
-<header>
-  <div class="nav">
-    <button id="prev" aria-label="이전 달">‹</button>
-    <div class="month" id="month"></div>
-    <button id="next" aria-label="다음 달">›</button>
+<section class="screen" id="screen">
+  <div class="update" id="update" hidden>
+    <span id="updText"></span>
+    <button id="updBtn">업데이트</button>
   </div>
-  <div class="total">이번 달 입금 합계<b id="total">0</b></div>
-  <div class="sub" id="sub"></div>
-</header>
 
-<div class="stats" id="stats" hidden>
-  <div class="stat" id="stAvg"></div>
-  <div class="stat" id="stPace"></div>
-  <button class="stat" id="stNeed" type="button"></button>
-</div>
-
-<div class="week"><div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div></div>
-<div class="grid" id="grid"></div>
-
-<div class="footbtns">
-  <button class="backup-btn" id="settleBtn">월 정산</button>
-  <button class="backup-btn" id="backupBtn">백업 / 복원</button>
-</div>
-
-<div class="scrim" id="scrim"></div>
-
-<div class="sheet" id="sheet">
-  <h2 id="sheetTitle"></h2>
-  <div class="offrow">
-    <span>쉬는 날로 표시<small>남은 날·페이스 계산에서 빠져요</small></span>
-    <button type="button" id="offBtn" aria-pressed="false">휴무</button>
-  </div>
-  <label for="fDeposit">입금액 (원)</label>
-  <input id="fDeposit" type="text" inputmode="numeric" placeholder="0" autocomplete="off">
-  <div class="row2">
-    <div>
-      <label for="fToll">톨비 (원)</label>
-      <input id="fToll" type="text" inputmode="numeric" placeholder="0" autocomplete="off">
+  <header>
+    <div class="nav">
+      <button id="prev" aria-label="이전 달">‹</button>
+      <div class="month" id="month"></div>
+      <button id="next" aria-label="다음 달">›</button>
     </div>
-    <div>
-      <label for="fCash">현금 (원)</label>
-      <input id="fCash" type="text" inputmode="numeric" placeholder="0" autocomplete="off">
-    </div>
-  </div>
-  <div class="gashead">
-    <label>주유 (리터 / 금액)</label>
-    <button type="button" id="addGas">+ 주유 추가</button>
-  </div>
-  <div id="gasList"></div>
-  <p class="gasnote">회사/개인 버튼을 누르면 바뀌어요. 하루에 여러 번 넣었으면 주유를 추가하세요.</p>
-  <div class="btns">
-    <button class="del" id="del">삭제</button>
-    <button id="cancel">취소</button>
-    <button class="save" id="save">저장</button>
-  </div>
-</div>
+    <div class="total">이번 달 입금 합계<b id="total">0</b></div>
+  </header>
 
-<div class="sheet" id="stSheet">
-  <h2 id="stTitle"></h2>
-  <div class="final">
+  <div class="week"><div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div></div>
+  <div class="grid" id="grid"></div>
+</section>
+
+<main class="below" id="below">
+  <section id="curSec">
+    <div class="sectitle" id="curTitle"></div>
+    <div class="stats" id="stats" hidden>
+      <div class="stat" id="stAvg"></div>
+      <div class="stat" id="stPace"></div>
+      <button class="stat" id="stNeed" type="button"></button>
+    </div>
+    <div class="sub" id="sub"></div>
+  </section>
+
+  <section>
+    <div class="sectitle" id="stTitle"></div>
+    <div class="card">
+<div class="final">
     <div class="fl">최종지급액</div>
     <div class="fv" id="stFinal">0</div>
     <div class="fs" id="stMargin"></div>
@@ -343,9 +337,49 @@
     <label for="sRefund">L당 가스비 환급 (원)</label>
     <input id="sRefund" type="text" inputmode="decimal" autocomplete="off">
   </details>
+    </div>
+    <div class="card" id="vatCard">
+      <div class="vtitle" id="vatTitle"></div>
+      <div class="calc" id="vatRows"></div>
+      <div class="vsum" id="vatSum"></div>
+    </div>
+  </section>
+
+  <div class="footbtns">
+    <button class="backup-btn" id="backupBtn">백업 / 복원</button>
+  </div>
+</main>
+
+<div class="scrim" id="scrim"></div>
+
+<div class="sheet" id="sheet">
+  <h2 id="sheetTitle"></h2>
+  <div class="offrow">
+    <span>쉬는 날로 표시<small>남은 날·페이스 계산에서 빠져요</small></span>
+    <button type="button" id="offBtn" aria-pressed="false">휴무</button>
+  </div>
+  <label for="fDeposit">입금액 (원)</label>
+  <input id="fDeposit" type="text" inputmode="numeric" placeholder="0" autocomplete="off">
+  <div class="row2">
+    <div>
+      <label for="fToll">톨비 (원)</label>
+      <input id="fToll" type="text" inputmode="numeric" placeholder="0" autocomplete="off">
+    </div>
+    <div>
+      <label for="fCash">현금 (원)</label>
+      <input id="fCash" type="text" inputmode="numeric" placeholder="0" autocomplete="off">
+    </div>
+  </div>
+  <div class="gashead">
+    <label>주유 (리터 / 금액)</label>
+    <button type="button" id="addGas">+ 주유 추가</button>
+  </div>
+  <div id="gasList"></div>
+  <p class="gasnote">회사/개인 버튼을 누르면 바뀌어요. 하루에 여러 번 넣었으면 주유를 추가하세요.</p>
   <div class="btns">
-    <button id="stClose">닫기</button>
-    <button class="save" id="stSave">저장</button>
+    <button class="del" id="del">삭제</button>
+    <button id="cancel">취소</button>
+    <button class="save" id="save">저장</button>
   </div>
 </div>
 
@@ -597,13 +631,10 @@
     if (sumC) line1.push(`<i class="cash"></i>현금 ${fmt(sumC)}`);
     if (gc.l || gc.w) line2.push(`<i class="gas"></i>회사가스 ${fmtL(gc.l)}L · ${fmt(gc.w)}원`);
     if (gp.l || gp.w) line2.push(`<i class="pgas"></i>개인가스 ${fmtL(gp.l)}L · ${fmt(gp.w)}원`);
-    const pj = projectMonth(year, month, nowD, settingsFor(year, month));
-    const line0 = (sumD || sumT)
-      ? `<span class="sales">회사매출 <b>${fmt(Math.round(sumD * 10 / 9 + sumT))}</b>`
-        + (pj ? ` · 월말 예상 지급 <b class="${pj.r.final < 0 ? 'neg' : ''}">${money(pj.r.final)}</b>` : '')
-        + '</span>'
-      : '';
-    $('sub').innerHTML = [line0, line1.join(''), line2.join('')].filter(Boolean).map(s => `<div>${s}</div>`).join('');
+    $('sub').innerHTML = [line1.join(''), line2.join('')].filter(Boolean).map(s => `<div>${s}</div>`).join('');
+    $('curTitle').textContent = `${year === nowD.getFullYear() ? '' : year + '년 '}${month + 1}월 현황`;
+    $('curSec').hidden = $('stats').hidden && !$('sub').innerHTML;
+    renderSettle();
   }
 
   /* ---- 일평균 · 페이스 · 목표 ----
@@ -660,7 +691,7 @@
   function readSettle() {
     return {
       ins: parseWon($('sIns').value), fine: parseWon($('sFine').value), union: parseWon($('sUnion').value),
-      refund: parseL($('sRefund').value),
+      refund: parseL($('sRefund').value) || SETTLE_DEF.refund,
       apay: parseWon($('sApay').value), avat: parseWon($('sAvat').value)
     };
   }
@@ -693,36 +724,61 @@
     }
     if (s.avat) lines.push(`부가세 계산 ${money(r.vat)} → 실제 ${money(s.avat)} (${sdiff(s.avat - r.vat)})`);
     $('aCmp').innerHTML = lines.map(x => `<div>${x}</div>`).join('');
+    renderVatHalf(s);
   }
-  function openSettle() {
+  // 화면 아래 정산서: 현재 보고 있는 달의 값으로 채움 (입력 중인 칸은 건드리지 않음)
+  function renderSettle() {
     const s = settingsFor(year, month);
-    $('stTitle').textContent = `${year === new Date().getFullYear() ? '' : year + '년 '}${month + 1}월 정산`;
-    $('sIns').value = s.ins ? fmt(s.ins) : '';
-    $('sFine').value = s.fine ? fmt(s.fine) : '';
-    $('sUnion').value = s.union ? fmt(s.union) : '';
-    $('sApay').value = s.apay ? fmt(s.apay) : '';
-    $('sAvat').value = s.avat ? fmt(s.avat) : '';
-    $('sRefund').value = String(s.refund);
-    $('stNote').textContent = s._saved ? '' : '이 달 정산값을 아직 저장하지 않았어요. 지난달 값으로 계산 중이에요.';
-    $('stAdv').open = false;
+    $('stTitle').textContent = `${year === new Date().getFullYear() ? '' : year + '년 '}${month + 1}월 정산서`;
+    const setVal = (id, v) => { const el = $(id); if (document.activeElement !== el) el.value = v; };
+    setVal('sIns', s.ins ? fmt(s.ins) : '');
+    setVal('sFine', s.fine ? fmt(s.fine) : '');
+    setVal('sUnion', s.union ? fmt(s.union) : '');
+    setVal('sApay', s.apay ? fmt(s.apay) : '');
+    setVal('sAvat', s.avat ? fmt(s.avat) : '');
+    setVal('sRefund', String(s.refund));
+    $('stNote').textContent = s._saved ? '' : '이 달 정산값을 아직 입력하지 않았어요. 지난달 값으로 계산 중이에요.';
     updateSettle();
-    $('scrim').classList.add('open');
-    $('stSheet').classList.add('open');
-    $('stSheet').scrollTop = 0;
+  }
+  // 입력하면 바로 계산하고 자동 저장
+  function onSettleInput() {
+    updateSettle();
+    settle[ymKey(year, month)] = readSettle();
+    saveSettle();
+    $('stNote').textContent = '';
   }
   for (const id of ['sIns', 'sFine', 'sUnion', 'sApay', 'sAvat']) {
-    $(id).addEventListener('input', ev => { fmtWonInput(ev.target); updateSettle(); });
+    $(id).addEventListener('input', ev => { fmtWonInput(ev.target); onSettleInput(); });
   }
-  $('sRefund').addEventListener('input', ev => { fmtLiterInput(ev.target); updateSettle(); });
-  $('settleBtn').onclick = openSettle;
-  $('stClose').onclick = () => closeSheet();
-  $('stSave').onclick = () => {
-    const s = readSettle();
-    if (!s.refund) s.refund = SETTLE_DEF.refund;
-    settle[ymKey(year, month)] = s;
-    saveSettle(); closeSheet(); render();
-    toast(`${month + 1}월 정산값을 저장했어요`);
-  };
+  $('sRefund').addEventListener('input', ev => { fmtLiterInput(ev.target); onSettleInput(); });
+
+  // 반기 부가세: 1~6월 합 / 7~12월 합 (확정된 달은 실제 금액, 나머지는 계산값)
+  function renderVatHalf(sLive) {
+    const h = month < 6 ? 0 : 6;
+    const nowD = new Date();
+    $('vatTitle').textContent = `${year}년 ${h === 0 ? '상반기 (1~6월)' : '하반기 (7~12월)'} 부가세`;
+    let sum = 0, sumPj = 0, hasPj = false, rows = '';
+    for (let m = h; m < h + 6; m++) {
+      const t = calcMonth(year, m);
+      if (!t.sumD && !t.sumT) continue;                       // 기록 없는 달은 제외
+      const s = m === month ? sLive : settingsFor(year, m);
+      const calc = settleCalc(t, s).vat;
+      const actual = m === month ? (sLive.avat || 0) : ((settle[ymKey(year, m)] || {}).avat || 0);
+      const pj = actual > 0 ? null : projectMonth(year, m, nowD, s);
+      const v = actual > 0 ? actual : calc;
+      sum += v;
+      sumPj += pj ? pj.r.vat : v;
+      if (pj) hasPj = true;
+      const note = actual > 0 ? '실제 확정' : (pj ? `진행 중 · 월말 예상 ${money(pj.r.vat)}` : '계산값');
+      rows += `<div class="row"><span>${m + 1}월<small>${note}</small></span><b>${money(v)}</b></div>`;
+    }
+    $('vatRows').innerHTML = rows || '<div class="row"><span>아직 기록이 없어요</span></div>';
+    $('vatSum').innerHTML = rows
+      ? `<div class="vl">지급받을 부가세 합계</div><div class="vv ${sum < 0 ? 'neg' : ''}">${money(sum)}</div>`
+        + (hasPj ? `<div class="vs">월말 예상까지 반영하면 <b>${money(sumPj)}</b></div>` : '')
+        + '<div class="vn">실제 부가세를 입력한 달은 실제 금액, 나머지는 계산값이에요</div>'
+      : '';
+  }
 
   /* ---- 입력 시트 ---- */
   function fmtWonInput(el) {
@@ -821,7 +877,6 @@
     $('sheet').classList.remove('open');
     $('bkSheet').classList.remove('open');
     $('goalSheet').classList.remove('open');
-    $('stSheet').classList.remove('open');
     if (document.activeElement) document.activeElement.blur();
   }
 
@@ -924,6 +979,17 @@
     render(); closeSheet();
     toast(`${parts.join('과 ')}을 복원했어요`);
   };
+
+  // 첫 화면 높이: 키보드가 열려 있는 동안에는 값을 바꾸지 않음
+  function setScreenH() {
+    try {
+      const a = document.activeElement;
+      if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) return;
+      document.documentElement.style.setProperty('--screenH', window.innerHeight + 'px');
+    } catch (e) {}
+  }
+  setScreenH();
+  if (typeof window !== 'undefined') window.addEventListener('resize', setScreenH);
 
   render();
 

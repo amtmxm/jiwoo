@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="app-version" content="3">
+<meta name="app-version" content="4">
 <title>운행일지</title>
 <style>
   :root {
@@ -17,7 +17,9 @@
     --sun: #c8402f;
     --sat: #2b5fb5;
     --toll: #e0932b;
+    --cash: #c2517a;
     --gas: #2b8fc8;
+    --pgas: #8e5fd0;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -31,7 +33,9 @@
       --sun: #ef7d6e;
       --sat: #7ba6ee;
       --toll: #f0a94a;
+      --cash: #e47ba0;
       --gas: #5bb4e8;
+      --pgas: #b48cf0;
     }
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -47,7 +51,7 @@
     user-select: none;
   }
 
-  header { padding: 8px 16px 14px; }
+  header { padding: 8px 16px 10px; }
   .nav { display: flex; align-items: center; justify-content: space-between; }
   .nav button {
     width: 48px; height: 48px; border: 0; border-radius: 50%;
@@ -57,10 +61,13 @@
   .month { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
   .total { text-align: center; margin-top: 10px; color: var(--muted); font-size: 14px; }
   .total b { color: var(--accent); font-size: 22px; margin-left: 6px; font-variant-numeric: tabular-nums; }
-  .sub { text-align: center; margin-top: 4px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; min-height: 16px; }
-  .sub i { font-style: normal; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin: 0 4px 0 8px; }
-  .sub i.toll { background: var(--toll); }
-  .sub i.gas { background: var(--gas); }
+  .sub { text-align: center; margin-top: 4px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; line-height: 1.6; }
+  .sub i { font-style: normal; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin: 0 4px 0 10px; }
+  .sub i:first-child { margin-left: 0; }
+  i.toll, .dot.toll { background: var(--toll); }
+  i.cash, .dot.cash { background: var(--cash); }
+  i.gas, .dot.gas { background: var(--gas); }
+  i.pgas, .dot.pgas { background: var(--pgas); }
 
   .week, .grid { display: grid; grid-template-columns: repeat(7, 1fr); padding: 0 8px; }
   .week div { text-align: center; font-size: 13px; padding: 6px 0; color: var(--muted); }
@@ -84,8 +91,6 @@
   .cell.sat .d { color: var(--sat); }
   .cell .dots { display: flex; gap: 3px; min-height: 6px; }
   .cell .dot { width: 6px; height: 6px; border-radius: 50%; }
-  .cell .dot.toll { background: var(--toll); }
-  .cell .dot.gas { background: var(--gas); }
   .cell .a {
     font-size: 11px; font-weight: 600; color: var(--accent);
     font-variant-numeric: tabular-nums; min-height: 14px;
@@ -118,9 +123,25 @@
     background: var(--bg); color: var(--ink); user-select: text;
   }
   .sheet input:focus { outline: none; border-color: var(--accent); }
-  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
-  .row3 label { font-size: 12px; white-space: nowrap; }
-  .row3 input { font-size: 18px; padding: 12px 10px; margin-bottom: 16px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .row2 input { font-size: 20px; padding: 12px 12px; }
+
+  .gashead { display: flex; align-items: center; justify-content: space-between; margin: 2px 0 8px; }
+  .gashead button {
+    border: 0; background: var(--accent-soft); color: var(--accent);
+    font: inherit; font-size: 13px; font-weight: 600; padding: 8px 12px; border-radius: 10px;
+  }
+  .gasrow { display: grid; grid-template-columns: 54px 1fr 1fr 34px; gap: 6px; margin-bottom: 8px; align-items: center; }
+  .gasrow input { margin: 0; padding: 11px 8px; font-size: 17px; }
+  .gasrow button { border: 0; font: inherit; }
+  .gasrow .kind {
+    height: 44px; border-radius: 12px; font-size: 13px; font-weight: 700;
+    background: transparent; border: 1.5px solid var(--gas); color: var(--gas);
+  }
+  .gasrow.p .kind { border-color: var(--pgas); color: var(--pgas); }
+  .gasrow .rm { height: 44px; background: transparent; color: var(--muted); font-size: 16px; }
+  .gasnote { font-size: 12px; color: var(--muted); margin: 0 0 16px; }
+
   .btns { display: flex; gap: 10px; }
   .btns button {
     flex: 1; padding: 15px; font-size: 16px; font-weight: 600;
@@ -194,20 +215,22 @@
   <h2 id="sheetTitle"></h2>
   <label for="fDeposit">입금액 (원)</label>
   <input id="fDeposit" type="text" inputmode="numeric" placeholder="0" autocomplete="off">
-  <div class="row3">
+  <div class="row2">
     <div>
-      <label for="fToll">톨비(원)</label>
+      <label for="fToll">톨비 (원)</label>
       <input id="fToll" type="text" inputmode="numeric" placeholder="0" autocomplete="off">
     </div>
     <div>
-      <label for="fGasL">회사가스(L)</label>
-      <input id="fGasL" type="text" inputmode="decimal" placeholder="0" autocomplete="off">
-    </div>
-    <div>
-      <label for="fGasW">회사가스(원)</label>
-      <input id="fGasW" type="text" inputmode="numeric" placeholder="0" autocomplete="off">
+      <label for="fCash">현금 (원)</label>
+      <input id="fCash" type="text" inputmode="numeric" placeholder="0" autocomplete="off">
     </div>
   </div>
+  <div class="gashead">
+    <label>주유 (리터 / 금액)</label>
+    <button type="button" id="addGas">+ 주유 추가</button>
+  </div>
+  <div id="gasList"></div>
+  <p class="gasnote">회사/개인 버튼을 누르면 바뀌어요. 하루에 여러 번 넣었으면 주유를 추가하세요.</p>
   <div class="btns">
     <button class="del" id="del">삭제</button>
     <button id="cancel">취소</button>
@@ -230,21 +253,59 @@
 
 <script>
   /* ---- 데이터 ----
-     기록 형식: { "2026-11-09": { d: 입금, t: 톨비, gl: 회사가스(L), gw: 회사가스(원) } } */
-  const KEY = 'unhaeng.records.v2';
-  const OLD_KEY = 'unhaeng.deposits.v1';
+     기록 형식: { "2026-11-09": { d: 입금, t: 톨비, c: 현금,
+                  g: [ { k: 'c'(회사) | 'p'(개인), l: 리터, w: 금액 }, ... ] } } */
+  const KEY = 'unhaeng.records.v3';
+  const KEY_V2 = 'unhaeng.records.v2';   // 이전 버전(톨비·회사가스 1회)
+  const KEY_V1 = 'unhaeng.deposits.v1';  // 그 이전 버전(입금만)
   const DOW = ['일','월','화','수','목','금','토'];
+
+  const num = v => { v = Number(v); return Number.isFinite(v) && v > 0 ? v : 0; };
+
+  // 어떤 형식의 기록이든 현재 형식으로 정리 (비어 있으면 null)
+  function normRec(rec) {
+    if (!rec || typeof rec !== 'object') return null;
+    const r = {};
+    const d = Math.round(num(rec.d)), t = Math.round(num(rec.t)), c = Math.round(num(rec.c));
+    if (d) r.d = d;
+    if (t) r.t = t;
+    if (c) r.c = c;
+    const g = [];
+    if (Array.isArray(rec.g)) {
+      for (const e of rec.g) {
+        if (!e || typeof e !== 'object') continue;
+        const l = Math.round(num(e.l) * 1000) / 1000, w = Math.round(num(e.w));
+        if (l || w) g.push({ k: e.k === 'p' ? 'p' : 'c', l, w });
+      }
+    } else {
+      // v2 형식: gl, gw 하나씩
+      const l = Math.round(num(rec.gl) * 1000) / 1000, w = Math.round(num(rec.gw));
+      if (l || w) g.push({ k: 'c', l, w });
+    }
+    if (g.length) r.g = g;
+    return Object.keys(r).length ? r : null;
+  }
+  function normAll(obj, legacyNumbers) {
+    const out = {};
+    if (!obj || typeof obj !== 'object') return out;
+    for (const [k, v] of Object.entries(obj)) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(k)) continue;
+      const r = normRec(legacyNumbers ? { d: v } : v);
+      if (r) out[k] = r;
+    }
+    return out;
+  }
 
   function loadData() {
     try {
       const r = JSON.parse(localStorage.getItem(KEY));
       if (r && typeof r === 'object') return r;
     } catch (e) {}
-    // 이전 버전(입금만 저장) 데이터 이전
-    const moved = {};
+    let moved = {};
     try {
-      const old = JSON.parse(localStorage.getItem(OLD_KEY)) || {};
-      for (const [k, v] of Object.entries(old)) if (Number(v) > 0) moved[k] = { d: Number(v) };
+      const v2 = JSON.parse(localStorage.getItem(KEY_V2));
+      if (v2 && typeof v2 === 'object') moved = normAll(v2, false);
+      else moved = normAll(JSON.parse(localStorage.getItem(KEY_V1)), true);
     } catch (e) {}
     try { localStorage.setItem(KEY, JSON.stringify(moved)); } catch (e) {}
     return moved;
@@ -271,7 +332,8 @@
     const days = new Date(year, month + 1, 0).getDate();
     const grid = $('grid');
     grid.innerHTML = '';
-    let sumD = 0, sumT = 0, sumL = 0, sumW = 0;
+    let sumD = 0, sumT = 0, sumC = 0;
+    const gc = { l: 0, w: 0 }, gp = { l: 0, w: 0 };
 
     for (let i = 0; i < first; i++) {
       const e = document.createElement('div');
@@ -280,23 +342,100 @@
     }
     for (let d = 1; d <= days; d++) {
       const rec = data[keyOf(year, month, d)] || {};
+      const g = rec.g || [];
+      const hasC = g.some(e => e.k !== 'p'), hasP = g.some(e => e.k === 'p');
       const dow = (first + d - 1) % 7;
       const b = document.createElement('button');
       b.className = 'cell' + (dow === 0 ? ' sun' : '') + (dow === 6 ? ' sat' : '')
         + (rec.d ? ' has' : '')
         + (year === now.getFullYear() && month === now.getMonth() && d === now.getDate() ? ' today' : '');
       const dots = (rec.t ? '<span class="dot toll"></span>' : '')
-        + ((rec.gl || rec.gw) ? '<span class="dot gas"></span>' : '');
+        + (rec.c ? '<span class="dot cash"></span>' : '')
+        + (hasC ? '<span class="dot gas"></span>' : '')
+        + (hasP ? '<span class="dot pgas"></span>' : '');
       b.innerHTML = `<span class="top"><span class="d">${d}</span><span class="dots">${dots}</span></span>`
         + `<span class="a">${rec.d ? fmt(rec.d) : ''}</span>`;
       b.onclick = () => openSheet(d);
       grid.appendChild(b);
-      sumD += rec.d || 0; sumT += rec.t || 0; sumL += rec.gl || 0; sumW += rec.gw || 0;
+      sumD += rec.d || 0; sumT += rec.t || 0; sumC += rec.c || 0;
+      for (const e of g) { const t = e.k === 'p' ? gp : gc; t.l += e.l || 0; t.w += e.w || 0; }
     }
     $('total').textContent = fmt(sumD);
-    $('sub').innerHTML = (sumT || sumL || sumW)
-      ? `<i class="toll"></i>톨비 ${fmt(sumT)}<i class="gas"></i>가스 ${fmtL(sumL)}L · ${fmt(sumW)}원`
-      : '';
+
+    const line1 = [], line2 = [];
+    if (sumT) line1.push(`<i class="toll"></i>톨비 ${fmt(sumT)}`);
+    if (sumC) line1.push(`<i class="cash"></i>현금 ${fmt(sumC)}`);
+    if (gc.l || gc.w) line2.push(`<i class="gas"></i>회사가스 ${fmtL(gc.l)}L · ${fmt(gc.w)}원`);
+    if (gp.l || gp.w) line2.push(`<i class="pgas"></i>개인가스 ${fmtL(gp.l)}L · ${fmt(gp.w)}원`);
+    $('sub').innerHTML = [line1.join(''), line2.join('')].filter(Boolean).map(s => `<div>${s}</div>`).join('');
+  }
+
+  /* ---- 입력 시트 ---- */
+  function fmtWonInput(el) {
+    const n = el.value.replace(/[^0-9]/g, '');
+    el.value = n ? fmt(n) : '';
+  }
+  function fmtLiterInput(el) {
+    let v = el.value.replace(/[^0-9.]/g, '');
+    const i = v.indexOf('.');
+    if (i >= 0) v = v.slice(0, i + 1) + v.slice(i + 1).replace(/\./g, '').slice(0, 3);
+    el.value = v;
+  }
+
+  function paintKind(row) {
+    const p = row.dataset.k === 'p';
+    row.classList.toggle('p', p);
+    row.querySelector('.kind').textContent = p ? '개인' : '회사';
+  }
+  function addGasRow(e) {
+    e = e || {};
+    const row = document.createElement('div');
+    row.className = 'gasrow';
+    row.dataset.k = e.k === 'p' ? 'p' : 'c';
+    row.innerHTML = '<button type="button" class="kind"></button>'
+      + '<input class="gl" type="text" inputmode="decimal" placeholder="L" autocomplete="off">'
+      + '<input class="gw" type="text" inputmode="numeric" placeholder="원" autocomplete="off">'
+      + '<button type="button" class="rm" aria-label="이 주유 삭제">✕</button>';
+    row.querySelector('.gl').value = e.l ? String(e.l) : '';
+    row.querySelector('.gw').value = e.w ? fmt(e.w) : '';
+    paintKind(row);
+    $('gasList').appendChild(row);
+    return row;
+  }
+  function collectGas() {
+    const g = [];
+    for (const row of $('gasList').children) {
+      const l = parseL(row.querySelector('.gl').value);
+      const w = parseWon(row.querySelector('.gw').value);
+      if (l || w) g.push({ k: row.dataset.k === 'p' ? 'p' : 'c', l, w });
+    }
+    return g;
+  }
+
+  $('gasList').addEventListener('input', ev => {
+    const t = ev.target;
+    if (t.classList.contains('gl')) fmtLiterInput(t);
+    else if (t.classList.contains('gw')) fmtWonInput(t);
+  });
+  $('gasList').addEventListener('click', ev => {
+    const b = ev.target.closest('button');
+    if (!b) return;
+    const row = b.closest('.gasrow');
+    if (b.classList.contains('kind')) {
+      row.dataset.k = row.dataset.k === 'p' ? 'c' : 'p';
+      paintKind(row);
+    } else if (b.classList.contains('rm')) {
+      row.remove();
+    }
+  });
+  $('addGas').onclick = () => {
+    const last = $('gasList').lastElementChild;
+    const row = addGasRow({ k: last ? last.dataset.k : 'c' });
+    row.scrollIntoView({ block: 'nearest' });
+    row.querySelector('.gl').focus();
+  };
+  for (const id of ['fDeposit', 'fToll', 'fCash']) {
+    $(id).addEventListener('input', ev => fmtWonInput(ev.target));
   }
 
   function openSheet(d) {
@@ -306,10 +445,12 @@
     $('sheetTitle').textContent = `${month + 1}월 ${d}일 (${dow})`;
     $('fDeposit').value = rec.d ? fmt(rec.d) : '';
     $('fToll').value = rec.t ? fmt(rec.t) : '';
-    $('fGasL').value = rec.gl ? String(rec.gl) : '';
-    $('fGasW').value = rec.gw ? fmt(rec.gw) : '';
+    $('fCash').value = rec.c ? fmt(rec.c) : '';
+    $('gasList').innerHTML = '';
+    (rec.g && rec.g.length ? rec.g : [{ k: 'c' }]).forEach(addGasRow);
     $('scrim').classList.add('open');
     $('sheet').classList.add('open');
+    $('sheet').scrollTop = 0;
     setTimeout(() => $('fDeposit').focus(), 250);
   }
   function closeSheet() {
@@ -319,33 +460,15 @@
     if (document.activeElement) document.activeElement.blur();
   }
 
-  // 금액 입력칸: 숫자만, 천 단위 쉼표
-  for (const id of ['fDeposit', 'fToll', 'fGasW']) {
-    $(id).addEventListener('input', e => {
-      const n = e.target.value.replace(/[^0-9]/g, '');
-      e.target.value = n ? fmt(n) : '';
-    });
-  }
-  // 리터 입력칸: 숫자와 소수점(최대 3자리)
-  $('fGasL').addEventListener('input', e => {
-    let v = e.target.value.replace(/[^0-9.]/g, '');
-    const i = v.indexOf('.');
-    if (i >= 0) v = v.slice(0, i + 1) + v.slice(i + 1).replace(/\./g, '').slice(0, 3);
-    e.target.value = v;
-  });
-
   $('save').onclick = () => {
-    const rec = {};
-    const d = parseWon($('fDeposit').value);
-    const t = parseWon($('fToll').value);
-    const gl = parseL($('fGasL').value);
-    const gw = parseWon($('fGasW').value);
-    if (d) rec.d = d;
-    if (t) rec.t = t;
-    if (gl) rec.gl = gl;
-    if (gw) rec.gw = gw;
+    const rec = normRec({
+      d: parseWon($('fDeposit').value),
+      t: parseWon($('fToll').value),
+      c: parseWon($('fCash').value),
+      g: collectGas()
+    });
     const k = keyOf(year, month, selected);
-    if (Object.keys(rec).length) data[k] = rec; else delete data[k];
+    if (rec) data[k] = rec; else delete data[k];
     save(); closeSheet(); render();
   };
   $('del').onclick = () => {
@@ -384,7 +507,7 @@
 
   $('bkCopy').onclick = async () => {
     const payload = JSON.stringify({
-      app: 'unhaeng', version: 2,
+      app: 'unhaeng', version: 3,
       exported: new Date().toISOString(),
       records: data
     });
@@ -411,26 +534,11 @@
     try { obj = JSON.parse(raw); } catch (e) { return toast('백업 형식이 올바르지 않아요'); }
     if (!obj || typeof obj !== 'object') return toast('백업 형식이 올바르지 않아요');
 
-    const clean = {};
-    const put = (k, rec) => {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(k) || !rec || typeof rec !== 'object') return;
-      const r = {};
-      for (const f of ['d', 't', 'gw']) {
-        const v = Number(rec[f]);
-        if (Number.isFinite(v) && v > 0) r[f] = Math.round(v);
-      }
-      const gl = Number(rec.gl);
-      if (Number.isFinite(gl) && gl > 0) r.gl = Math.round(gl * 1000) / 1000;
-      if (Object.keys(r).length) clean[k] = r;
-    };
-    if (obj.records && typeof obj.records === 'object') {
-      for (const [k, v] of Object.entries(obj.records)) put(k, v);
-    } else if (obj.deposits && typeof obj.deposits === 'object') {
-      // 이전 버전 백업(입금만)
-      for (const [k, v] of Object.entries(obj.deposits)) put(k, { d: v });
-    } else {
-      return toast('백업 형식이 올바르지 않아요');
-    }
+    let clean;
+    if (obj.records && typeof obj.records === 'object') clean = normAll(obj.records, false);   // v2·v3 백업
+    else if (obj.deposits && typeof obj.deposits === 'object') clean = normAll(obj.deposits, true); // v1 백업
+    else return toast('백업 형식이 올바르지 않아요');
+
     const n = Object.keys(clean).length;
     if (!n) return toast('복원할 기록이 없어요');
     if (!confirm(`${n}일치 기록으로 복원할까요?\n현재 저장된 기록은 덮어써져요.`)) return;

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="app-version" content="11">
+<meta name="app-version" content="12">
 <title>운행일지</title>
 <style>
   :root {
@@ -50,7 +50,7 @@
   .screen {
     height: var(--screenH, 100vh);
     display: flex; flex-direction: column;
-    padding-top: calc(env(safe-area-inset-top, 0px) + 28px);
+    padding-top: calc(env(safe-area-inset-top, 0px) + 20px);
     padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
   }
   .below { padding: 4px 12px calc(env(safe-area-inset-bottom, 0px) + 28px); }
@@ -76,7 +76,7 @@
   .vsum .vs b { color: var(--ink); }
   .vsum .vn { font-size: 11px; color: var(--muted); margin-top: 8px; }
 
-  header { padding: 8px 16px 10px; }
+  header { padding: 6px 12px 6px; }
   .nav { display: flex; align-items: center; justify-content: space-between; }
   .nav button {
     width: 48px; height: 48px; border: 0; border-radius: 50%;
@@ -84,7 +84,7 @@
   }
   .nav button:active { background: var(--accent-soft); }
   .month { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
-  .total { text-align: center; margin-top: 10px; color: var(--muted); font-size: 14px; }
+  .total { text-align: center; margin-top: 6px; color: var(--muted); font-size: 14px; }
   .total b { color: var(--accent); font-size: 22px; margin-left: 6px; font-variant-numeric: tabular-nums; }
   .sub { text-align: center; margin-top: 4px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; line-height: 1.6; }
   .sub i { font-style: normal; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin: 0 4px 0 10px; }
@@ -94,7 +94,7 @@
   i.gas, .dot.gas { background: var(--gas); }
   i.pgas, .dot.pgas { background: var(--pgas); }
 
-  .week, .grid { display: grid; grid-template-columns: repeat(7, 1fr); padding: 0 8px; }
+  .week, .grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); padding: 0 8px; }
   .week div { text-align: center; font-size: 13px; padding: 6px 0; color: var(--muted); }
   .week div:first-child { color: var(--sun); }
   .week div:last-child { color: var(--sat); }
@@ -104,31 +104,31 @@
     background: var(--surface);
     border: 1.5px solid transparent;
     border-radius: 12px;
-    padding: 6px 4px;
+    padding: 4px 3px;
     display: flex; flex-direction: column; align-items: center; justify-content: space-between;
     font: inherit; color: var(--ink);
     min-height: 0;
   }
   .cell.empty { background: transparent; pointer-events: none; }
-  .cell .top { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .cell .top { display: flex; flex-direction: column; align-items: center; gap: 2px; }
   .cell .d { font-size: 15px; font-weight: 600; }
   .cell.sun .d { color: var(--sun); }
   .cell.sat .d { color: var(--sat); }
   .cell .dots { display: flex; gap: 3px; min-height: 6px; }
   .cell .dot { width: 6px; height: 6px; border-radius: 50%; }
   .cell .a {
-    font-size: 11px; font-weight: 600; color: var(--accent);
-    font-variant-numeric: tabular-nums; min-height: 14px;
+    font-size: min(11px, 2.9vw); font-weight: 600; color: var(--accent); letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums; min-height: 14px; white-space: nowrap;
   }
   .cell.has { background: var(--accent-soft); }
   .cell.today { border-color: var(--accent); }
   .cell:active { transform: scale(0.96); }
 
   /* 페이스 카드 */
-  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 0 0 8px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 6px; }
   .stats[hidden] { display: none; }
   .stat {
-    background: var(--surface); border: 0; border-radius: 12px; padding: 8px 4px;
+    background: var(--surface); border: 0; border-radius: 12px; padding: 6px 4px;
     text-align: center; font: inherit; color: inherit; min-width: 0;
   }
   button.stat { box-shadow: inset 0 0 0 1.5px var(--accent-soft); }
@@ -330,6 +330,11 @@
       <button id="next" aria-label="다음 달">›</button>
     </div>
     <div class="total">이번 달 입금 합계<b id="total">0</b></div>
+    <div class="stats" id="stats" hidden>
+      <div class="stat" id="stAvg"></div>
+      <div class="stat" id="stPace"></div>
+      <button class="stat" id="stNeed" type="button"></button>
+    </div>
   </header>
 
   <div class="week"><div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div></div>
@@ -339,11 +344,6 @@
 <main class="below" id="below">
   <section id="curSec">
     <div class="sectitle" id="curTitle"></div>
-    <div class="stats" id="stats" hidden>
-      <div class="stat" id="stAvg"></div>
-      <div class="stat" id="stPace"></div>
-      <button class="stat" id="stNeed" type="button"></button>
-    </div>
     <div class="sub" id="sub"></div>
   </section>
 
@@ -696,7 +696,7 @@
     if (gp.l || gp.w) line2.push(`<i class="pgas"></i>개인가스 ${fmtL(gp.l)}L · ${fmt(gp.w)}원`);
     $('sub').innerHTML = [line1.join(''), line2.join('')].filter(Boolean).map(s => `<div>${s}</div>`).join('');
     $('curTitle').textContent = `${year === nowD.getFullYear() ? '' : year + '년 '}${month + 1}월 현황`;
-    $('curSec').hidden = $('stats').hidden && !$('sub').innerHTML;
+    $('curSec').hidden = !$('sub').innerHTML;
     renderSettle();
   }
 

@@ -110,6 +110,30 @@
   }
   .btns .save { flex: 2; background: var(--accent); color: #fff; }
   .btns .del { color: var(--sun); }
+
+  /* 백업 */
+  .backup-btn {
+    margin: 0 16px 4px; padding: 12px; border: 0; border-radius: 12px;
+    background: transparent; color: var(--muted); font: inherit; font-size: 14px;
+  }
+  .backup-btn:active { background: var(--accent-soft); }
+  .sheet textarea {
+    width: 100%; height: 120px; margin: 6px 0 12px; padding: 12px;
+    font-size: 13px; font-family: monospace; resize: none;
+    border: 1.5px solid var(--line); border-radius: 14px;
+    background: var(--bg); color: var(--ink); user-select: text;
+  }
+  .sheet textarea:focus { outline: none; border-color: var(--accent); }
+  .sheet .hint { font-size: 13px; color: var(--muted); margin: 0 0 12px; line-height: 1.5; }
+  .btns.stack { flex-direction: column; }
+  .btns .restore { background: var(--bg); }
+  .toast {
+    position: fixed; left: 16px; right: 16px; bottom: calc(env(safe-area-inset-bottom, 0px) + 90px);
+    background: var(--ink); color: var(--bg); padding: 14px 16px; border-radius: 14px;
+    font-size: 14px; text-align: center; opacity: 0; pointer-events: none; transition: opacity .2s;
+    z-index: 10;
+  }
+  .toast.show { opacity: 1; }
 </style>
 </head>
 <body>
@@ -126,6 +150,8 @@
 <div class="week"><div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div></div>
 <div class="grid" id="grid"></div>
 
+<button class="backup-btn" id="backupBtn">백업 / 복원</button>
+
 <div class="scrim" id="scrim"></div>
 <div class="sheet" id="sheet">
   <h2 id="sheetTitle"></h2>
@@ -137,6 +163,18 @@
     <button class="save" id="save">저장</button>
   </div>
 </div>
+
+<div class="sheet" id="bkSheet">
+  <h2>백업 / 복원</h2>
+  <p class="hint" id="lastBk"></p>
+  <textarea id="bkText" placeholder="복원할 때는 백업한 내용을 여기에 붙여넣으세요" spellcheck="false"></textarea>
+  <div class="btns stack">
+    <button class="save" id="bkCopy">백업 복사하기</button>
+    <button class="restore" id="bkRestore">붙여넣은 내용으로 복원하기</button>
+    <button id="bkClose">닫기</button>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
 
 <script>
   const KEY = 'unhaeng.deposits.v1';
@@ -197,7 +235,8 @@
   function closeSheet() {
     $('scrim').classList.remove('open');
     $('sheet').classList.remove('open');
-    $('amount').blur();
+    $('bkSheet').classList.remove('open');
+    if (document.activeElement) document.activeElement.blur();
   }
 
   $('amount').addEventListener('input', e => {
@@ -219,6 +258,71 @@
 
   $('prev').onclick = () => { month--; if (month < 0) { month = 11; year--; } render(); };
   $('next').onclick = () => { month++; if (month > 11) { month = 0; year++; } render(); };
+
+  /* ---- 백업 / 복원 ---- */
+  const LAST_KEY = 'unhaeng.lastBackup';
+  let toastTimer;
+  function toast(msg) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
+  }
+  function showLast() {
+    const l = localStorage.getItem(LAST_KEY);
+    const n = Object.keys(data).length;
+    $('lastBk').textContent = (l ? `마지막 백업: ${l}` : '아직 백업한 적이 없어요')
+      + ` · 저장된 기록 ${n}일`;
+  }
+  $('backupBtn').onclick = () => {
+    $('bkText').value = '';
+    showLast();
+    $('scrim').classList.add('open');
+    $('bkSheet').classList.add('open');
+  };
+  $('bkClose').onclick = closeSheet;
+
+  $('bkCopy').onclick = async () => {
+    const payload = JSON.stringify({
+      app: 'unhaeng', version: 1,
+      exported: new Date().toISOString(),
+      deposits: data
+    });
+    $('bkText').value = payload;
+    let ok = false;
+    try { await navigator.clipboard.writeText(payload); ok = true; }
+    catch (e) {
+      try { $('bkText').select(); ok = document.execCommand('copy'); } catch (e2) {}
+    }
+    if (ok) {
+      const d = new Date();
+      localStorage.setItem(LAST_KEY, `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`);
+      showLast();
+      toast('복사했어요. 카톡 "나와의 채팅"이나 메모 앱에 붙여넣어 보관하세요');
+    } else {
+      toast('자동 복사에 실패했어요. 글상자를 길게 눌러 직접 복사하세요');
+    }
+  };
+
+  $('bkRestore').onclick = () => {
+    const raw = $('bkText').value.trim();
+    if (!raw) return toast('붙여넣은 백업 내용이 없어요');
+    let obj;
+    try { obj = JSON.parse(raw); } catch (e) { return toast('백업 형식이 올바르지 않아요'); }
+    const src = obj && obj.deposits;
+    if (!src || typeof src !== 'object') return toast('백업 형식이 올바르지 않아요');
+    const clean = {};
+    for (const [k, v] of Object.entries(src)) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(k) && Number.isFinite(v) && v > 0) clean[k] = Math.round(v);
+    }
+    const n = Object.keys(clean).length;
+    if (!n) return toast('복원할 기록이 없어요');
+    if (!confirm(`${n}일치 기록으로 복원할까요?\n현재 저장된 기록은 덮어써져요.`)) return;
+    data = clean;
+    save(); render(); closeSheet();
+    toast(`${n}일치 기록을 복원했어요`);
+  };
 
   render();
 </script>

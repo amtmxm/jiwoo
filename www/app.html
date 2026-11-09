@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="app-version" content="4">
+<meta name="app-version" content="5">
 <title>운행일지</title>
 <style>
   :root {
@@ -98,6 +98,21 @@
   .cell.has { background: var(--accent-soft); }
   .cell.today { border-color: var(--accent); }
   .cell:active { transform: scale(0.96); }
+
+  /* 페이스 카드 */
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 0 12px 8px; }
+  .stats[hidden] { display: none; }
+  .stat {
+    background: var(--surface); border: 0; border-radius: 12px; padding: 8px 4px;
+    text-align: center; font: inherit; color: inherit; min-width: 0;
+  }
+  button.stat { box-shadow: inset 0 0 0 1.5px var(--accent-soft); }
+  button.stat:active { background: var(--accent-soft); }
+  .stat .l { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .stat .v { font-size: 15px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .stat .s { font-size: 10.5px; color: var(--muted); margin-top: 1px; min-height: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .stat .v.ok { color: var(--accent); }
+  .stat .v.neg { color: var(--sun); }
 
   /* 입력 시트 */
   .scrim {
@@ -204,6 +219,12 @@
   <div class="sub" id="sub"></div>
 </header>
 
+<div class="stats" id="stats" hidden>
+  <div class="stat" id="stAvg"></div>
+  <div class="stat" id="stPace"></div>
+  <button class="stat" id="stNeed" type="button"></button>
+</div>
+
 <div class="week"><div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div></div>
 <div class="grid" id="grid"></div>
 
@@ -235,6 +256,17 @@
     <button class="del" id="del">삭제</button>
     <button id="cancel">취소</button>
     <button class="save" id="save">저장</button>
+  </div>
+</div>
+
+<div class="sheet" id="goalSheet">
+  <h2>월 목표액</h2>
+  <p class="hint">목표액까지 하루에 얼마를 벌어야 하는지 계산할 때 쓰는 월 입금 목표예요.</p>
+  <label for="fGoal">목표 입금액 (원)</label>
+  <input id="fGoal" type="text" inputmode="numeric" placeholder="12,000,000" autocomplete="off">
+  <div class="btns">
+    <button id="goalCancel">취소</button>
+    <button class="save" id="goalSave">저장</button>
   </div>
 </div>
 
@@ -326,13 +358,21 @@
   const parseWon = s => parseInt(String(s).replace(/[^0-9]/g, ''), 10) || 0;
   const parseL = s => Math.round((parseFloat(s) || 0) * 1000) / 1000;
 
+  // 월 목표액 (기본 1,200만)
+  const GOAL_KEY = 'unhaeng.goal.v1';
+  let goal = (() => { const g = Number(localStorage.getItem(GOAL_KEY)); return g > 0 ? Math.round(g) : 12000000; })();
+  const saveGoal = () => localStorage.setItem(GOAL_KEY, String(goal));
+  const manLabel = n => n % 10000 === 0 ? `${fmt(n / 10000)}만` : `${fmt(n)}원`;
+  const signed = n => (n > 0 ? '+' : n < 0 ? '−' : '') + fmt(Math.abs(n));
+
   function render() {
     $('month').textContent = `${year}년 ${month + 1}월`;
+    const nowD = new Date();
     const first = new Date(year, month, 1).getDay();
     const days = new Date(year, month + 1, 0).getDate();
     const grid = $('grid');
     grid.innerHTML = '';
-    let sumD = 0, sumT = 0, sumC = 0;
+    let sumD = 0, sumT = 0, sumC = 0, work = 0;
     const gc = { l: 0, w: 0 }, gp = { l: 0, w: 0 };
 
     for (let i = 0; i < first; i++) {
@@ -348,7 +388,7 @@
       const b = document.createElement('button');
       b.className = 'cell' + (dow === 0 ? ' sun' : '') + (dow === 6 ? ' sat' : '')
         + (rec.d ? ' has' : '')
-        + (year === now.getFullYear() && month === now.getMonth() && d === now.getDate() ? ' today' : '');
+        + (year === nowD.getFullYear() && month === nowD.getMonth() && d === nowD.getDate() ? ' today' : '');
       const dots = (rec.t ? '<span class="dot toll"></span>' : '')
         + (rec.c ? '<span class="dot cash"></span>' : '')
         + (hasC ? '<span class="dot gas"></span>' : '')
@@ -358,9 +398,11 @@
       b.onclick = () => openSheet(d);
       grid.appendChild(b);
       sumD += rec.d || 0; sumT += rec.t || 0; sumC += rec.c || 0;
+      if (rec.d) work++;
       for (const e of g) { const t = e.k === 'p' ? gp : gc; t.l += e.l || 0; t.w += e.w || 0; }
     }
     $('total').textContent = fmt(sumD);
+    renderStats(sumD, work, days, nowD);
 
     const line1 = [], line2 = [];
     if (sumT) line1.push(`<i class="toll"></i>톨비 ${fmt(sumT)}`);
@@ -369,6 +411,55 @@
     if (gp.l || gp.w) line2.push(`<i class="pgas"></i>개인가스 ${fmtL(gp.l)}L · ${fmt(gp.w)}원`);
     $('sub').innerHTML = [line1.join(''), line2.join('')].filter(Boolean).map(s => `<div>${s}</div>`).join('');
   }
+
+  /* ---- 일평균 · 페이스 · 목표 ----
+     일평균 = 입금합 ÷ 입금 기록이 있는 날 수
+     페이스 = 입금합 + 일평균 × 남은 날 (남은 날 = 말일 − 오늘)
+     하루 필요액 = (목표 − 입금합) ÷ 남은 날 */
+  function renderStats(sumD, work, dim, nowD) {
+    const el = $('stats');
+    const cur = year === nowD.getFullYear() && month === nowD.getMonth();
+    const past = year < nowD.getFullYear() || (year === nowD.getFullYear() && month < nowD.getMonth());
+    if ((!cur && !past) || (past && !work)) { el.hidden = true; return; }
+    el.hidden = false;
+
+    const remain = cur ? dim - nowD.getDate() : 0;
+    const avg = work ? sumD / work : 0;
+    const pace = Math.round(sumD + avg * remain);
+    const diff = pace - goal;
+    const card = (l, v, s, cls) => `<div class="l">${l}</div><div class="v ${cls || ''}">${v}</div><div class="s">${s || ''}</div>`;
+
+    $('stAvg').innerHTML = card('일평균 매출', work ? fmt(Math.round(avg)) : '—', work ? `${work}일 기준` : '기록 없음');
+    $('stPace').innerHTML = card(past ? '월 합계' : '예상 페이스', work ? fmt(pace) : '—',
+      work ? `목표 ${signed(diff)}` : '', work ? (diff >= 0 ? 'ok' : 'neg') : '');
+
+    const label = `${manLabel(goal)}까지 하루`;
+    let html;
+    if (past) {
+      const d2 = sumD - goal;
+      html = card('목표 대비', signed(d2) === '' ? '0' : signed(d2), `목표 ${manLabel(goal)}`, d2 >= 0 ? 'ok' : 'neg');
+    } else if (sumD >= goal) {
+      html = card(label, '달성', sumD > goal ? `+${fmt(sumD - goal)} 초과` : '목표 달성', 'ok');
+    } else if (remain > 0) {
+      html = card(label, fmt(Math.ceil((goal - sumD) / remain)), `남은 ${remain}일`);
+    } else {
+      html = card('목표까지 부족', fmt(goal - sumD), '남은 날 없음', 'neg');
+    }
+    $('stNeed').innerHTML = html;
+  }
+  $('stNeed').onclick = () => {
+    $('fGoal').value = fmt(goal);
+    $('scrim').classList.add('open');
+    $('goalSheet').classList.add('open');
+    setTimeout(() => $('fGoal').focus(), 250);
+  };
+  $('fGoal').addEventListener('input', ev => fmtWonInput(ev.target));
+  $('goalSave').onclick = () => {
+    const g = parseWon($('fGoal').value);
+    if (!g) return toast('목표액을 입력하세요');
+    goal = g; saveGoal(); closeSheet(); render();
+  };
+  $('goalCancel').onclick = () => closeSheet();
 
   /* ---- 입력 시트 ---- */
   function fmtWonInput(el) {
@@ -457,6 +548,7 @@
     $('scrim').classList.remove('open');
     $('sheet').classList.remove('open');
     $('bkSheet').classList.remove('open');
+    $('goalSheet').classList.remove('open');
     if (document.activeElement) document.activeElement.blur();
   }
 
@@ -509,7 +601,8 @@
     const payload = JSON.stringify({
       app: 'unhaeng', version: 3,
       exported: new Date().toISOString(),
-      records: data
+      records: data,
+      goal: goal
     });
     $('bkText').value = payload;
     let ok = false;
@@ -543,6 +636,8 @@
     if (!n) return toast('복원할 기록이 없어요');
     if (!confirm(`${n}일치 기록으로 복원할까요?\n현재 저장된 기록은 덮어써져요.`)) return;
     data = clean;
+    const g = Math.round(num(obj.goal));
+    if (g) { goal = g; saveGoal(); }
     save(); render(); closeSheet();
     toast(`${n}일치 기록을 복원했어요`);
   };
@@ -584,6 +679,7 @@
   };
   $('bkUpdate').onclick = () => checkUpdate(true);
   document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) render();
     if (!document.hidden && Date.now() - lastCheck > 60000) checkUpdate(false);
   });
   checkUpdate(false);

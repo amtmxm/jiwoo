@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="app-version" content="5">
+<meta name="app-version" content="8">
 <title>운행일지</title>
 <style>
   :root {
@@ -113,6 +113,45 @@
   .stat .s { font-size: 10.5px; color: var(--muted); margin-top: 1px; min-height: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .stat .v.ok { color: var(--accent); }
   .stat .v.neg { color: var(--sun); }
+
+  /* 하단 버튼 */
+  .footbtns { display: flex; justify-content: center; gap: 4px; }
+  .footbtns .backup-btn { margin: 0 4px 4px; }
+  .sub .sales { font-size: 13px; }
+  .sub .sales b { color: var(--ink); font-size: 14px; }
+
+  /* 월 정산 */
+  .final { text-align: center; padding: 14px 8px 16px; background: var(--accent-soft); border-radius: 16px; margin-bottom: 12px; }
+  .final .fl { font-size: 12px; color: var(--muted); }
+  .final .fv { font-size: 30px; font-weight: 800; margin: 2px 0; font-variant-numeric: tabular-nums; color: var(--accent); }
+  .final .fv.neg { color: var(--sun); }
+  .final .fs { font-size: 12px; color: var(--muted); }
+  .actual { margin: 14px 0 6px; }
+  .actual .atitle { font-size: 13px; color: var(--muted); margin-bottom: 2px; }
+  .cmp { font-size: 12px; color: var(--muted); line-height: 1.7; padding: 8px 0 0; font-variant-numeric: tabular-nums; }
+  .offrow { display: flex; align-items: center; justify-content: space-between; margin: -4px 0 12px; font-size: 14px; }
+  .offrow small { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .offrow button {
+    border: 1.5px solid var(--line); background: transparent; color: var(--muted);
+    border-radius: 12px; padding: 9px 16px; font: inherit; font-size: 14px; font-weight: 600;
+  }
+  .offrow button.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .cell.off { opacity: .8; }
+  .cell.off .a { color: var(--muted); font-weight: 500; }
+  .final .fe { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .final .fe .fv { font-size: 22px; }
+  .sub .sales b.neg { color: var(--sun); }
+  .calc .row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 15px;
+  }
+  .calc .row small { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; font-weight: 400; }
+  .calc .row b { font-variant-numeric: tabular-nums; font-weight: 700; text-align: right; }
+  .calc .row.sum { font-weight: 800; }
+  .calc .row.input input { width: 150px; margin: 0; padding: 9px 10px; font-size: 17px; }
+  .adv { margin: 4px 0 14px; }
+  .adv summary { font-size: 13px; color: var(--muted); padding: 8px 0; }
+  .adv input { font-size: 18px; padding: 10px 12px; margin-bottom: 10px; }
 
   /* 입력 시트 */
   .scrim {
@@ -228,12 +267,19 @@
 <div class="week"><div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div></div>
 <div class="grid" id="grid"></div>
 
-<button class="backup-btn" id="backupBtn">백업 / 복원</button>
+<div class="footbtns">
+  <button class="backup-btn" id="settleBtn">월 정산</button>
+  <button class="backup-btn" id="backupBtn">백업 / 복원</button>
+</div>
 
 <div class="scrim" id="scrim"></div>
 
 <div class="sheet" id="sheet">
   <h2 id="sheetTitle"></h2>
+  <div class="offrow">
+    <span>쉬는 날로 표시<small>남은 날·페이스 계산에서 빠져요</small></span>
+    <button type="button" id="offBtn" aria-pressed="false">휴무</button>
+  </div>
   <label for="fDeposit">입금액 (원)</label>
   <input id="fDeposit" type="text" inputmode="numeric" placeholder="0" autocomplete="off">
   <div class="row2">
@@ -256,6 +302,50 @@
     <button class="del" id="del">삭제</button>
     <button id="cancel">취소</button>
     <button class="save" id="save">저장</button>
+  </div>
+</div>
+
+<div class="sheet" id="stSheet">
+  <h2 id="stTitle"></h2>
+  <div class="final">
+    <div class="fl">최종지급액</div>
+    <div class="fv" id="stFinal">0</div>
+    <div class="fs" id="stMargin"></div>
+    <div class="fe" id="stProj" hidden>
+      <div class="fl">월말 예상</div>
+      <div class="fv" id="stPv">0</div>
+      <div class="fs" id="stPs"></div>
+      <div class="fs" id="stPn"></div>
+    </div>
+  </div>
+  <div class="calc">
+    <div class="row"><span>회사매출<small>입금합 × 10/9 + 톨비합</small></span><b id="rSales"></b></div>
+    <div class="row"><span>− 기준금</span><b id="rBase"></b></div>
+    <div class="row"><span>− 환급후 가스비<small id="rGasNote"></small></span><b id="rGas"></b></div>
+    <div class="row sum"><span>= 추가입금분</span><b id="rExtra"></b></div>
+    <div class="row"><span>− 수수료<small>회사매출의 10%</small></span><b id="rFee"></b></div>
+    <div class="row"><span>− 부가세<small>(회사매출 − 6,800,000) × 10%</small></span><b id="rVat"></b></div>
+    <label class="row input"><span>− 4대보험</span><input id="sIns" type="text" inputmode="numeric" placeholder="0" autocomplete="off"></label>
+    <label class="row input"><span>− 과태료</span><input id="sFine" type="text" inputmode="numeric" placeholder="0" autocomplete="off"></label>
+    <label class="row input"><span>− 노조비</span><input id="sUnion" type="text" inputmode="numeric" placeholder="0" autocomplete="off"></label>
+  </div>
+  <p class="gasnote" id="stNote"></p>
+  <div class="actual">
+    <div class="atitle">회사에서 확정한 실제 금액 (정산이 나오면 입력)</div>
+    <div class="calc">
+      <label class="row input"><span>실제지급액</span><input id="sApay" type="text" inputmode="numeric" placeholder="0" autocomplete="off"></label>
+      <label class="row input"><span>실제 부가세</span><input id="sAvat" type="text" inputmode="numeric" placeholder="0" autocomplete="off"></label>
+    </div>
+    <div class="cmp" id="aCmp"></div>
+  </div>
+  <details class="adv" id="stAdv">
+    <summary>가스 환급 단가 바꾸기</summary>
+    <label for="sRefund">L당 가스비 환급 (원)</label>
+    <input id="sRefund" type="text" inputmode="decimal" autocomplete="off">
+  </details>
+  <div class="btns">
+    <button id="stClose">닫기</button>
+    <button class="save" id="stSave">저장</button>
   </div>
 </div>
 
@@ -302,6 +392,7 @@
     if (d) r.d = d;
     if (t) r.t = t;
     if (c) r.c = c;
+    if (rec.off) r.off = 1;
     const g = [];
     if (Array.isArray(rec.g)) {
       for (const e of rec.g) {
@@ -364,6 +455,103 @@
   const saveGoal = () => localStorage.setItem(GOAL_KEY, String(goal));
   const manLabel = n => n % 10000 === 0 ? `${fmt(n / 10000)}만` : `${fmt(n)}원`;
   const signed = n => (n > 0 ? '+' : n < 0 ? '−' : '') + fmt(Math.abs(n));
+  const sdiff = n => { n = Math.round(n); return n === 0 ? '0' : (n > 0 ? '+' : '−') + fmt(Math.abs(n)); };
+  const money = n => { n = Math.round(n); return (n < 0 ? '−' : '') + fmt(Math.abs(n)); };
+
+  /* ---- 정산 설정 (월별) ----
+     저장 형식: { "2026-11": { ins: 4대보험, fine: 과태료, union: 노조비, refund: L당 환급, apay: 실제지급액, avat: 실제 부가세 } } */
+  const SETTLE_KEY = 'unhaeng.settle.v1';
+  const VAT_BASE = 6800000;  // 부가세 기준 매출 (매달 고정)
+  const BASE = 4400000;      // 기준금 (매달 고정)
+  const SETTLE_DEF = { refund: 137.845, ins: 0, union: 0 };
+  function normSettle(obj) {
+    const out = {};
+    if (!obj || typeof obj !== 'object') return out;
+    for (const [k, v] of Object.entries(obj)) {
+      if (!/^\d{4}-\d{2}$/.test(k) || !v || typeof v !== 'object') continue;
+      const r = {};
+      for (const f of ['ins', 'fine', 'union']) {
+        const n = Number(v[f]);
+        if (Number.isFinite(n) && n >= 0) r[f] = Math.round(n);
+      }
+      for (const f of ['apay', 'avat']) {
+        const n = Number(v[f]);
+        if (Number.isFinite(n) && n > 0) r[f] = Math.round(n);
+      }
+      const rf = Number(v.refund);
+      if (Number.isFinite(rf) && rf > 0) r.refund = Math.round(rf * 1000) / 1000;
+      if (Object.keys(r).length) out[k] = r;
+    }
+    return out;
+  }
+  let settle = (() => { try { return normSettle(JSON.parse(localStorage.getItem(SETTLE_KEY))); } catch (e) { return {}; } })();
+  const saveSettle = () => localStorage.setItem(SETTLE_KEY, JSON.stringify(settle));
+  const ymKey = (y, m) => `${y}-${pad(m + 1)}`;
+
+  // 해당 월 정산값: 저장된 값 → 없으면 가장 가까운 이전 달 값(과태료 제외) → 기본값
+  function settingsFor(y, m) {
+    const key = ymKey(y, m);
+    const prev = Object.keys(settle).filter(k => k < key).sort().reverse();
+    const out = { ...SETTLE_DEF, fine: 0 };
+    for (const f of ['refund', 'ins', 'union']) {
+      for (const k of prev) { if (settle[k][f] != null) { out[f] = settle[k][f]; break; } }
+    }
+    Object.assign(out, settle[key] || {});
+    out._saved = !!settle[key];
+    return out;
+  }
+
+  // 오늘 이후 남은 날 수 (휴무로 표시한 날 제외)
+  function remainDays(y, m, nowD) {
+    const dim = new Date(y, m + 1, 0).getDate();
+    let n = 0;
+    for (let d = nowD.getDate() + 1; d <= dim; d++) {
+      const r = data[keyOf(y, m, d)];
+      if (!(r && r.off)) n++;
+    }
+    return n;
+  }
+
+  // 이번 달 월말 예상: 오늘까지 일평균으로 남은 날을 채운다고 보고, 입금·톨비·가스를 같은 비율로 늘려 정산
+  function projectMonth(y, m, nowD, s) {
+    if (y !== nowD.getFullYear() || m !== nowD.getMonth()) return null;
+    const t = calcMonth(y, m);
+    const remain = remainDays(y, m, nowD);
+    const off = new Date(y, m + 1, 0).getDate() - nowD.getDate() - remain;
+    if (!t.work || remain <= 0) return null;
+    const f = (t.work + remain) / t.work;
+    const t2 = {
+      sumD: t.sumD * f, sumT: t.sumT * f, sumC: t.sumC * f, work: t.work + remain,
+      gc: { l: t.gc.l * f, w: t.gc.w * f }, gp: { l: t.gp.l * f, w: t.gp.w * f }
+    };
+    return { remain, off, work: t.work, pace: t2.sumD, r: settleCalc(t2, s) };
+  }
+
+  function calcMonth(y, m) {
+    const t = { sumD: 0, sumT: 0, sumC: 0, work: 0, gc: { l: 0, w: 0 }, gp: { l: 0, w: 0 } };
+    const days = new Date(y, m + 1, 0).getDate();
+    for (let d = 1; d <= days; d++) {
+      const rec = data[keyOf(y, m, d)];
+      if (!rec) continue;
+      t.sumD += rec.d || 0; t.sumT += rec.t || 0; t.sumC += rec.c || 0;
+      if (rec.d) t.work++;
+      for (const e of rec.g || []) { const x = e.k === 'p' ? t.gp : t.gc; x.l += e.l || 0; x.w += e.w || 0; }
+    }
+    return t;
+  }
+
+  // 정산 계산 (엑셀 수식과 동일)
+  function settleCalc(t, s) {
+    const sales = t.sumD * 10 / 9 + t.sumT;            // 회사매출 = 입금합×10/9 + 톨비합
+    const refund = t.gc.l * s.refund;                    // 가스비 환급 = 회사가스(L) × L당 환급
+    const gasNet = t.gc.w - refund;                      // 환급후 가스비
+    const extra = sales - BASE - gasNet;               // 추가입금분
+    const fee = sales * 0.1;                             // 수수료
+    const vat = (sales - VAT_BASE) * 0.1;                // 부가세 (엑셀의 성과금 9:1)
+    const final = extra - s.ins - vat - s.fine - fee - s.union;  // 최종지급액
+    const margin = t.sumD ? final / t.sumD : 0;          // 마진율 = 최종지급액 ÷ 입금합
+    return { sales, refund, gasNet, extra, fee, vat, final, margin };
+  }
 
   function render() {
     $('month').textContent = `${year}년 ${month + 1}월`;
@@ -387,14 +575,14 @@
       const dow = (first + d - 1) % 7;
       const b = document.createElement('button');
       b.className = 'cell' + (dow === 0 ? ' sun' : '') + (dow === 6 ? ' sat' : '')
-        + (rec.d ? ' has' : '')
+        + (rec.d ? ' has' : '') + (rec.off && !rec.d ? ' off' : '')
         + (year === nowD.getFullYear() && month === nowD.getMonth() && d === nowD.getDate() ? ' today' : '');
       const dots = (rec.t ? '<span class="dot toll"></span>' : '')
         + (rec.c ? '<span class="dot cash"></span>' : '')
         + (hasC ? '<span class="dot gas"></span>' : '')
         + (hasP ? '<span class="dot pgas"></span>' : '');
       b.innerHTML = `<span class="top"><span class="d">${d}</span><span class="dots">${dots}</span></span>`
-        + `<span class="a">${rec.d ? fmt(rec.d) : ''}</span>`;
+        + `<span class="a">${rec.d ? fmt(rec.d) : (rec.off ? '휴무' : '')}</span>`;
       b.onclick = () => openSheet(d);
       grid.appendChild(b);
       sumD += rec.d || 0; sumT += rec.t || 0; sumC += rec.c || 0;
@@ -409,7 +597,13 @@
     if (sumC) line1.push(`<i class="cash"></i>현금 ${fmt(sumC)}`);
     if (gc.l || gc.w) line2.push(`<i class="gas"></i>회사가스 ${fmtL(gc.l)}L · ${fmt(gc.w)}원`);
     if (gp.l || gp.w) line2.push(`<i class="pgas"></i>개인가스 ${fmtL(gp.l)}L · ${fmt(gp.w)}원`);
-    $('sub').innerHTML = [line1.join(''), line2.join('')].filter(Boolean).map(s => `<div>${s}</div>`).join('');
+    const pj = projectMonth(year, month, nowD, settingsFor(year, month));
+    const line0 = (sumD || sumT)
+      ? `<span class="sales">회사매출 <b>${fmt(Math.round(sumD * 10 / 9 + sumT))}</b>`
+        + (pj ? ` · 월말 예상 지급 <b class="${pj.r.final < 0 ? 'neg' : ''}">${money(pj.r.final)}</b>` : '')
+        + '</span>'
+      : '';
+    $('sub').innerHTML = [line0, line1.join(''), line2.join('')].filter(Boolean).map(s => `<div>${s}</div>`).join('');
   }
 
   /* ---- 일평균 · 페이스 · 목표 ----
@@ -423,7 +617,8 @@
     if ((!cur && !past) || (past && !work)) { el.hidden = true; return; }
     el.hidden = false;
 
-    const remain = cur ? dim - nowD.getDate() : 0;
+    const remain = cur ? remainDays(year, month, nowD) : 0;
+    const offN = cur ? dim - nowD.getDate() - remain : 0;
     const avg = work ? sumD / work : 0;
     const pace = Math.round(sumD + avg * remain);
     const diff = pace - goal;
@@ -441,7 +636,7 @@
     } else if (sumD >= goal) {
       html = card(label, '달성', sumD > goal ? `+${fmt(sumD - goal)} 초과` : '목표 달성', 'ok');
     } else if (remain > 0) {
-      html = card(label, fmt(Math.ceil((goal - sumD) / remain)), `남은 ${remain}일`);
+      html = card(label, fmt(Math.ceil((goal - sumD) / remain)), `남은 ${remain}일${offN ? `·휴무${offN}` : ''}`);
     } else {
       html = card('목표까지 부족', fmt(goal - sumD), '남은 날 없음', 'neg');
     }
@@ -460,6 +655,74 @@
     goal = g; saveGoal(); closeSheet(); render();
   };
   $('goalCancel').onclick = () => closeSheet();
+
+  /* ---- 월 정산 시트 ---- */
+  function readSettle() {
+    return {
+      ins: parseWon($('sIns').value), fine: parseWon($('sFine').value), union: parseWon($('sUnion').value),
+      refund: parseL($('sRefund').value),
+      apay: parseWon($('sApay').value), avat: parseWon($('sAvat').value)
+    };
+  }
+  function updateSettle() {
+    const s = readSettle();
+    const t = calcMonth(year, month);
+    const r = settleCalc(t, s);
+    $('stFinal').textContent = money(r.final);
+    $('stFinal').classList.toggle('neg', r.final < 0);
+    $('stMargin').textContent = `마진율 ${r.margin < 0 ? '−' : ''}${Math.abs(r.margin * 100).toFixed(2)}% · 입금합 ${fmt(t.sumD)}`;
+    const pj = projectMonth(year, month, new Date(), s);
+    $('stProj').hidden = !pj;
+    if (pj) {
+      $('stPv').textContent = money(pj.r.final);
+      $('stPv').classList.toggle('neg', pj.r.final < 0);
+      $('stPs').textContent = `마진율 ${pj.r.margin < 0 ? '−' : ''}${Math.abs(pj.r.margin * 100).toFixed(2)}% · 예상 입금합 ${fmt(Math.round(pj.pace))}`;
+      $('stPn').textContent = `일평균(${pj.work}일 기준)으로 남은 ${pj.remain}일${pj.off ? `(휴무 ${pj.off}일 제외)` : ''}을 채운 예상이에요`;
+    }
+    $('rSales').textContent = money(r.sales);
+    $('rBase').textContent = money(BASE);
+    $('rGas').textContent = money(r.gasNet);
+    $('rGasNote').textContent = `가스 ${money(t.gc.w)} − 환급 ${money(r.refund)}`;
+    $('rExtra').textContent = money(r.extra);
+    $('rFee').textContent = money(r.fee);
+    $('rVat').textContent = money(r.vat);
+    const lines = [];
+    if (s.apay) {
+      if (t.sumD) lines.push(`실제 마진율 ${(s.apay / t.sumD * 100).toFixed(2)}%`);
+      lines.push(`지급액 계산 ${money(r.final)} → 실제 ${money(s.apay)} (${sdiff(s.apay - r.final)})`);
+    }
+    if (s.avat) lines.push(`부가세 계산 ${money(r.vat)} → 실제 ${money(s.avat)} (${sdiff(s.avat - r.vat)})`);
+    $('aCmp').innerHTML = lines.map(x => `<div>${x}</div>`).join('');
+  }
+  function openSettle() {
+    const s = settingsFor(year, month);
+    $('stTitle').textContent = `${year === new Date().getFullYear() ? '' : year + '년 '}${month + 1}월 정산`;
+    $('sIns').value = s.ins ? fmt(s.ins) : '';
+    $('sFine').value = s.fine ? fmt(s.fine) : '';
+    $('sUnion').value = s.union ? fmt(s.union) : '';
+    $('sApay').value = s.apay ? fmt(s.apay) : '';
+    $('sAvat').value = s.avat ? fmt(s.avat) : '';
+    $('sRefund').value = String(s.refund);
+    $('stNote').textContent = s._saved ? '' : '이 달 정산값을 아직 저장하지 않았어요. 지난달 값으로 계산 중이에요.';
+    $('stAdv').open = false;
+    updateSettle();
+    $('scrim').classList.add('open');
+    $('stSheet').classList.add('open');
+    $('stSheet').scrollTop = 0;
+  }
+  for (const id of ['sIns', 'sFine', 'sUnion', 'sApay', 'sAvat']) {
+    $(id).addEventListener('input', ev => { fmtWonInput(ev.target); updateSettle(); });
+  }
+  $('sRefund').addEventListener('input', ev => { fmtLiterInput(ev.target); updateSettle(); });
+  $('settleBtn').onclick = openSettle;
+  $('stClose').onclick = () => closeSheet();
+  $('stSave').onclick = () => {
+    const s = readSettle();
+    if (!s.refund) s.refund = SETTLE_DEF.refund;
+    settle[ymKey(year, month)] = s;
+    saveSettle(); closeSheet(); render();
+    toast(`${month + 1}월 정산값을 저장했어요`);
+  };
 
   /* ---- 입력 시트 ---- */
   function fmtWonInput(el) {
@@ -529,9 +792,18 @@
     $(id).addEventListener('input', ev => fmtWonInput(ev.target));
   }
 
+  let curOff = false;
+  function paintOff() {
+    $('offBtn').classList.toggle('on', curOff);
+    $('offBtn').setAttribute('aria-pressed', String(curOff));
+    $('offBtn').textContent = curOff ? '휴무 ✓' : '휴무';
+  }
+  $('offBtn').onclick = () => { curOff = !curOff; paintOff(); };
+
   function openSheet(d) {
     selected = d;
     const rec = data[keyOf(year, month, d)] || {};
+    curOff = !!rec.off; paintOff();
     const dow = DOW[new Date(year, month, d).getDay()];
     $('sheetTitle').textContent = `${month + 1}월 ${d}일 (${dow})`;
     $('fDeposit').value = rec.d ? fmt(rec.d) : '';
@@ -549,6 +821,7 @@
     $('sheet').classList.remove('open');
     $('bkSheet').classList.remove('open');
     $('goalSheet').classList.remove('open');
+    $('stSheet').classList.remove('open');
     if (document.activeElement) document.activeElement.blur();
   }
 
@@ -557,7 +830,8 @@
       d: parseWon($('fDeposit').value),
       t: parseWon($('fToll').value),
       c: parseWon($('fCash').value),
-      g: collectGas()
+      g: collectGas(),
+      off: curOff
     });
     const k = keyOf(year, month, selected);
     if (rec) data[k] = rec; else delete data[k];
@@ -602,6 +876,7 @@
       app: 'unhaeng', version: 3,
       exported: new Date().toISOString(),
       records: data,
+      settle: settle,
       goal: goal
     });
     $('bkText').value = payload;
@@ -627,19 +902,27 @@
     try { obj = JSON.parse(raw); } catch (e) { return toast('백업 형식이 올바르지 않아요'); }
     if (!obj || typeof obj !== 'object') return toast('백업 형식이 올바르지 않아요');
 
-    let clean;
-    if (obj.records && typeof obj.records === 'object') clean = normAll(obj.records, false);   // v2·v3 백업
-    else if (obj.deposits && typeof obj.deposits === 'object') clean = normAll(obj.deposits, true); // v1 백업
-    else return toast('백업 형식이 올바르지 않아요');
+    let clean = null;
+    if (obj.records && typeof obj.records === 'object') clean = normAll(obj.records, false);        // v2·v3 백업
+    else if (obj.deposits && typeof obj.deposits === 'object') clean = normAll(obj.deposits, true);  // v1 백업
+    const cleanSettle = (obj.settle && typeof obj.settle === 'object') ? normSettle(obj.settle) : null;
+    const n = clean ? Object.keys(clean).length : 0;
+    const sn = cleanSettle ? Object.keys(cleanSettle).length : 0;
+    if (!clean && !cleanSettle) return toast('백업 형식이 올바르지 않아요');
+    if (!n && !sn) return toast('복원할 기록이 없어요');
 
-    const n = Object.keys(clean).length;
-    if (!n) return toast('복원할 기록이 없어요');
-    if (!confirm(`${n}일치 기록으로 복원할까요?\n현재 저장된 기록은 덮어써져요.`)) return;
-    data = clean;
+    const parts = [];
+    if (n) parts.push(`${n}일치 기록`);
+    if (sn) parts.push(`${sn}개월 정산값`);
+    const warn = n ? '현재 저장된 기록은 덮어써져요.' : '입력해 둔 기록은 그대로 두고 정산값만 반영돼요.';
+    if (!confirm(`${parts.join('과 ')}으로 복원할까요?\n${warn}`)) return;
+
+    if (n) { data = clean; save(); }
+    if (sn) { settle = n ? cleanSettle : { ...settle, ...cleanSettle }; saveSettle(); }
     const g = Math.round(num(obj.goal));
     if (g) { goal = g; saveGoal(); }
-    save(); render(); closeSheet();
-    toast(`${n}일치 기록을 복원했어요`);
+    render(); closeSheet();
+    toast(`${parts.join('과 ')}을 복원했어요`);
   };
 
   render();

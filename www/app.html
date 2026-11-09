@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="app-version" content="10">
+<meta name="app-version" content="11">
 <title>운행일지</title>
 <style>
   :root {
@@ -434,7 +434,7 @@
 
 <div class="sheet" id="tSheet">
   <h2 id="tTitle"></h2>
-  <input class="search" id="tSearch" type="search" placeholder="항공사 검색 (예: 제주, 티웨이, korean)" autocomplete="off">
+  <input class="search" id="tSearch" type="search" placeholder="항공사 검색 (예: 제주, ㅈㅈ, 티웨이, korean)" autocomplete="off">
   <div id="tList"></div>
   <div class="btns" style="margin-top:14px"><button id="tClose">닫기</button></div>
 </div>
@@ -999,6 +999,25 @@
     ]}
   };
   let curT = 1;
+  // 초성 검색: 'ㅈㅈ' → 제주, 'ㅌㄹㄴㅌ' → 트리니티, '제주ㅎㄱ'처럼 섞어서도 가능
+  const CHO = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+  function choOf(ch) {
+    const c = ch.charCodeAt(0) - 0xAC00;
+    return c >= 0 && c <= 11171 ? CHO[Math.floor(c / 588)] : null;
+  }
+  function matchText(text, q) {
+    if (text.includes(q)) return true;
+    if (!/[ㄱ-ㅎ]/.test(q)) return false;
+    for (let i = 0; i + q.length <= text.length; i++) {
+      let ok = true;
+      for (let j = 0; j < q.length; j++) {
+        const t = text[i + j], c = q[j];
+        if (CHO.includes(c) ? choOf(t) !== c : t !== c) { ok = false; break; }
+      }
+      if (ok) return true;
+    }
+    return false;
+  }
   function parseAir(str) {
     if (str === SELF) return { self: true };
     const m = /^(.*) \((.*)\) \[(.*)\]$/.exec(str);
@@ -1011,7 +1030,7 @@
       const items = list.filter(a => {
         if (!q) return true;
         const p = parseAir(a);
-        return (a + ' ' + (ALIAS[p.ko] || '')).toLowerCase().includes(q);
+        return matchText((a + ' ' + (ALIAS[p.ko] || '')).toLowerCase(), q);
       });
       if (!items.length) continue;
       html += `<div class="crow"><div class="cno">${no}</div><div class="cair">`

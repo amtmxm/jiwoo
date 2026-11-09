@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="app-version" content="9">
+<meta name="app-version" content="10">
 <title>운행일지</title>
 <style>
   :root {
@@ -138,6 +138,43 @@
   .stat .s { font-size: 10.5px; color: var(--muted); margin-top: 1px; min-height: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .stat .v.ok { color: var(--accent); }
   .stat .v.neg { color: var(--sun); }
+
+  /* 상단 바로가기 버튼 */
+  .quick { display: flex; gap: 8px; padding: 0 16px 4px; }
+  .qbtn {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+    height: 40px; border: 0; border-radius: 14px; background: var(--surface); color: var(--ink);
+    font: inherit; font-size: 14px; font-weight: 700; box-shadow: inset 0 0 0 1.5px var(--accent-soft);
+  }
+  .qbtn svg { color: var(--accent); flex: none; }
+  .qbtn:active { background: var(--accent-soft); }
+
+  /* 공항 카운터 · 식당 시트 */
+  .sheet input.search {
+    margin: 0 0 6px; padding: 12px 14px; font-size: 16px; font-weight: 500; text-align: left;
+  }
+  .crow { display: grid; grid-template-columns: 74px 1fr; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .cno { font-size: 16px; font-weight: 800; color: var(--accent); }
+  .cair > div { padding: 3px 0; font-size: 15px; line-height: 1.5; }
+  .cair small { color: var(--muted); font-size: 12px; margin-left: 6px; }
+  .chip { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); margin-left: 6px; white-space: nowrap; }
+  .cair .self { color: var(--muted); font-size: 14px; }
+  .empty { text-align: center; color: var(--muted); padding: 28px 0; font-size: 14px; }
+  .fcard { background: var(--bg); border-radius: 16px; padding: 12px 14px; margin-bottom: 10px; }
+  .fcard.open { box-shadow: inset 0 0 0 1.5px var(--accent); }
+  .fhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+  .fname { font-size: 17px; font-weight: 800; }
+  .fname small { font-size: 12px; font-weight: 500; color: var(--muted); margin-left: 6px; }
+  .fbadge { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+  .fbadge.open { background: var(--accent); color: #fff; }
+  .fbadge.next { background: rgba(224,147,43,.2); color: var(--toll); }
+  .fbadge.closed { background: var(--line); color: var(--muted); }
+  .fbadge.off { background: rgba(200,64,47,.15); color: var(--sun); }
+  .frow { display: flex; justify-content: space-between; padding: 6px 0; font-size: 15px; font-variant-numeric: tabular-nums; }
+  .frow .fm { color: var(--muted); }
+  .frow.cur { font-weight: 800; color: var(--accent); }
+  .frow.cur .fm { color: var(--accent); }
+  .fnote { font-size: 12px; color: var(--muted); margin-top: 4px; }
 
   /* 하단 버튼 */
   .footbtns { display: flex; justify-content: center; gap: 4px; }
@@ -274,6 +311,18 @@
     <button id="updBtn">업데이트</button>
   </div>
 
+  <div class="quick">
+    <button class="qbtn" id="qT1" type="button">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>1터
+    </button>
+    <button class="qbtn" id="qT2" type="button">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>2터
+    </button>
+    <button class="qbtn" id="qFood" type="button">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z"/></svg>식당
+    </button>
+  </div>
+
   <header>
     <div class="nav">
       <button id="prev" aria-label="이전 달">‹</button>
@@ -381,6 +430,20 @@
     <button id="cancel">취소</button>
     <button class="save" id="save">저장</button>
   </div>
+</div>
+
+<div class="sheet" id="tSheet">
+  <h2 id="tTitle"></h2>
+  <input class="search" id="tSearch" type="search" placeholder="항공사 검색 (예: 제주, 티웨이, korean)" autocomplete="off">
+  <div id="tList"></div>
+  <div class="btns" style="margin-top:14px"><button id="tClose">닫기</button></div>
+</div>
+
+<div class="sheet" id="foodSheet">
+  <h2>식당 운영시간</h2>
+  <p class="hint" id="foodNow"></p>
+  <div id="foodList"></div>
+  <div class="btns" style="margin-top:6px"><button id="foodClose">닫기</button></div>
 </div>
 
 <div class="sheet" id="goalSheet">
@@ -877,6 +940,8 @@
     $('sheet').classList.remove('open');
     $('bkSheet').classList.remove('open');
     $('goalSheet').classList.remove('open');
+    $('tSheet').classList.remove('open');
+    $('foodSheet').classList.remove('open');
     if (document.activeElement) document.activeElement.blur();
   }
 
@@ -901,6 +966,121 @@
 
   $('prev').onclick = () => { month--; if (month < 0) { month = 11; year--; } render(); };
   $('next').onclick = () => { month++; if (month > 11) { month = 0; year++; } render(); };
+
+  /* ---- 인천공항 체크인 카운터 ---- */
+  const SELF = '[셀프체크인 · 셀프백드롭 전용 카운터]';
+  const ALIAS = { '트리니티항공': '티웨이 tway t\'way' };   // 예전 이름으로도 검색되게
+  const COUNTERS = {
+    1: { title: '1터 체크인 카운터', sub: '제1여객터미널', rows: [
+      ['2 (A,B)', ['트리니티항공 (Trinity Airways) [대한민국]', '카놋샤크항공 (Qanot Sharq) [우즈베키스탄]', '파라타항공 (Parata Air) [대한민국]']],
+      ['3 (C)', ['에어프레미아 (Air Premia) [대한민국]']],
+      ['4 (D)', ['베트남항공 (Vietnam Airlines) [베트남]', '에바항공 (EVA Air) [대만]', '터키항공 (Turkish Airlines) [튀르키예]', '미아트몽골항공 (MIAT Mongolian Airlines) [몽골]', '에티오피아항공 (Ethiopian Airlines) [에티오피아]', '톈진항공 (Tianjin Airlines) [중국]', '베트젯에어(태국) (VietJet Air Thailand) [태국]']],
+      ['5 (E)', ['베트젯에어 (VietJet Air) [베트남]', '중국남방항공 (China Southern Airlines) [중국]', '에어캐나다 (Air Canada) [캐나다]', '에어아스타나 (Air Astana) [카자흐스탄]', '스카이앙코르항공 (Sky Angkor Airlines) [캄보디아]', '타이라이언에어 (Thai Lion Air) [태국]']],
+      ['6 (F)', ['이스타항공 (Eastar Jet) [대한민국]', '싱가포르항공 (Singapore Airlines) [싱가포르]', '홍콩항공 (Hongkong Airlines) [홍콩]', '알래스카항공 (Alaska Airlines) [미국]', '스리랑칸항공 (SriLankan Airlines) [스리랑카]', '센트럼에어 (CentrumAir) [우즈베키스탄]']],
+      ['9 (H)', ['중국동방항공 (China Eastern) [중국]', '에미레이트항공 (Emirates) [아랍에미리트]', '에어로케이 (Aero K) [대한민국]', '폴란드항공(LOT) (LOT Polish Airlines) [폴란드]', '춘추항공 (Spring Airlines) [중국]', '상하이항공 (Shanghai Airlines) [중국]', '해남항공 (Hainan Airlines) [중국]', '투르크메니스탄항공 (Turkmenistan Airlines) [투르크메니스탄]']],
+      ['10 (J)', ['캐세이퍼시픽항공 (Cathay Pacific) [홍콩]', '에어아시아 (AirAsia) [말레이시아]', '바틱에어 (Batik Air) [말레이시아]', '루프트한자 (Lufthansa) [독일]', '핀에어 (Finnair) [핀란드]', '스위스항공 (Swiss) [스위스]', '스쿠트항공 (Scoot) [싱가포르]', '아메리칸항공 (American Airlines) [미국]', '미얀마국제항공 (MAI) [미얀마]', '에티하드항공 (Etihad) [아랍에미리트]', '웨스트젯 (WestJet) [캐나다]']],
+      ['11 (K)', ['피치항공 (Peach) [일본]', '홍콩익스프레스 (HK Express) [홍콩]', '유나이티드항공 (United) [미국]', '카타르항공 (Qatar Airways) [카타르]', '젯스타 (Jetstar) [호주]', '지프에어 (ZIPAIR) [일본]', '우즈베키스탄항공 (Uzbekistan Airways) [우즈베키스탄]', '에어아시아 (AirAsia) [말레이시아]', '라오항공 (Lao Airlines) [라오스]', '에어로몽골리아 (Aero Mongolia) [몽골]', '스캇항공 (SCAT Airlines) [카자흐스탄]']],
+      ['12 (L)', ['제주항공 (JEJUair) [대한민국]', SELF]],
+      ['13 (M,N)', ['중국국제항공 (Air China) [중국]', '타이항공 (THAI) [태국]', '세부퍼시픽항공 (Cebu Pacific) [필리핀]', '필리핀항공 (Philippine Airlines) [필리핀]', '말레이시아항공 (Malaysia Airlines) [말레이시아]', '선전항공 (Shenzhen Airlines) [중국]', '타이거에어타이완 (Tigerair Taiwan) [대만]', '칭다오항공 (Qingdao Airlines) [중국]', '인도항공 (Air India) [인도]', '사천항공 (Sichuan Airlines) [중국]', '산동항공 (Shandong Airlines) [중국]', '마카오항공 (Air Macau) [마카오]', '로얄브루나이항공 (Royal Brunei Airlines) [브루나이]']]
+    ]},
+    2: { title: '2터 체크인 카운터', sub: '제2여객터미널', rows: [
+      ['1', ['대한항공 (Korean Air) [대한민국]']],
+      ['2', ['대한항공 (Korean Air) [대한민국]']],
+      ['3', ['대한항공 (Korean Air) [대한민국]']],
+      ['4', ['대한항공 (Korean Air) [대한민국]']],
+      ['5', ['진에어 (Jin Air) [대한민국]', '에어서울 (Air Seoul) [대한민국]', '에어부산 (Air Busan) [대한민국]']],
+      ['6', [SELF]],
+      ['7', [SELF]],
+      ['8', ['아시아나항공 (Asiana Airlines) [대한민국]']],
+      ['9', ['아시아나항공 (Asiana Airlines) [대한민국]']],
+      ['10', ['델타항공 (Delta Air Lines) [미국]', '스칸디나비아항공 (SAS) [스웨덴·노르웨이·덴마크]', '중화항공 (China Airlines) [대만]', '버진애틀랜틱 (Virgin Atlantic) [영국]']],
+      ['11', [SELF]],
+      ['12', ['가루다인도네시아 (Garuda Indonesia) [인도네시아]', '케이엘엠네덜란드항공 (KLM) [네덜란드]', '샤먼항공 (Xiamen Air) [중국]', '아에로멕시코 (AeroMexico) [멕시코]', '에어프랑스 (Air France) [프랑스]']]
+    ]}
+  };
+  let curT = 1;
+  function parseAir(str) {
+    if (str === SELF) return { self: true };
+    const m = /^(.*) \((.*)\) \[(.*)\]$/.exec(str);
+    return m ? { ko: m[1], en: m[2], cc: m[3] } : { ko: str };
+  }
+  function renderCounters(t, query) {
+    const q = String(query || '').trim().toLowerCase();
+    let html = '';
+    for (const [no, list] of COUNTERS[t].rows) {
+      const items = list.filter(a => {
+        if (!q) return true;
+        const p = parseAir(a);
+        return (a + ' ' + (ALIAS[p.ko] || '')).toLowerCase().includes(q);
+      });
+      if (!items.length) continue;
+      html += `<div class="crow"><div class="cno">${no}</div><div class="cair">`
+        + items.map(a => {
+          const p = parseAir(a);
+          if (p.self) return '<div class="self">셀프체크인 · 셀프백드롭 전용</div>';
+          return `<div>${p.ko}${p.en ? `<small>${p.en}</small>` : ''}${p.cc ? `<span class="chip">${p.cc}</span>` : ''}</div>`;
+        }).join('')
+        + '</div></div>';
+    }
+    $('tList').innerHTML = html || '<div class="empty">검색 결과가 없어요</div>';
+  }
+  function openCounters(t) {
+    curT = t;
+    $('tTitle').innerHTML = `${COUNTERS[t].title}<small style="font-size:13px;font-weight:500;color:var(--muted);margin-left:8px">${COUNTERS[t].sub}</small>`;
+    $('tSearch').value = '';
+    renderCounters(t, '');
+    $('scrim').classList.add('open');
+    $('tSheet').classList.add('open');
+    $('tSheet').scrollTop = 0;
+  }
+  $('tSearch').addEventListener('input', ev => renderCounters(curT, ev.target.value));
+  $('qT1').onclick = () => openCounters(1);
+  $('qT2').onclick = () => openCounters(2);
+  $('tClose').onclick = () => closeSheet();
+
+  /* ---- 식당 운영시간 ---- */
+  const FOOD = [
+    { n: '1터 대기장', m: [['조식', '07:00', '11:20'], ['중식', '11:30', '15:00'], ['석식', '16:00', '19:30']] },
+    { n: '2터 버스', m: [['조식', '06:00', '10:00'], ['중식', '10:00', '16:00'], ['석식', '16:00', '21:00']] },
+    { n: '2터 청사', tag: '주말휴무', weekendOff: true, m: [['조식', '07:00', '09:00'], ['중식', '11:00', '14:00'], ['석식', '17:00', '19:00']] },
+    { n: '경비대', last: ['2', '19:30'], m: [['조식', '07:00', '09:00'], ['중식', '11:00', '13:00'], ['석식', '17:00', '20:00']] }
+  ];
+  const toMin = hm => { const [h, m] = hm.split(':').map(Number); return h * 60 + m; };
+  function foodStatus(p, nowD) {
+    const wd = nowD.getDay();
+    if (p.weekendOff && (wd === 0 || wd === 6)) return { cls: 'off', text: '오늘 휴무', idx: -1 };
+    const t = nowD.getHours() * 60 + nowD.getMinutes();
+    for (let i = 0; i < p.m.length; i++) {
+      if (t >= toMin(p.m[i][1]) && t < toMin(p.m[i][2])) {
+        if (p.last && Number(p.last[0]) === i && t >= toMin(p.last[1])) return { cls: 'open', text: `라스트오더 마감 · ${p.m[i][2]}까지`, idx: i };
+        return { cls: 'open', text: `영업 중 · ${p.m[i][2]}까지`, idx: i };
+      }
+    }
+    for (let i = 0; i < p.m.length; i++) {
+      if (t < toMin(p.m[i][1])) return { cls: 'next', text: `다음 ${p.m[i][0]} ${p.m[i][1]}`, idx: i };
+    }
+    return { cls: 'closed', text: '오늘 영업 종료', idx: -1 };
+  }
+  function renderFood() {
+    const nowD = new Date();
+    $('foodNow').textContent = `${DOW[nowD.getDay()]}요일 ${pad(nowD.getHours())}:${pad(nowD.getMinutes())} 기준으로 표시해요`;
+    $('foodList').innerHTML = FOOD.map(p => {
+      const st = foodStatus(p, nowD);
+      return `<div class="fcard ${st.cls}">`
+        + `<div class="fhead"><div class="fname">${p.n}${p.tag ? `<small>${p.tag}</small>` : ''}</div><span class="fbadge ${st.cls}">${st.text}</span></div>`
+        + p.m.map((m, i) => `<div class="frow ${i === st.idx ? 'cur' : ''}"><span class="fm">${m[0]}</span><span>${m[1]} ~ ${m[2]}</span></div>`).join('')
+        + (p.last ? `<div class="fnote">석식 라스트오더 ${p.last[1]}</div>` : '')
+        + '</div>';
+    }).join('');
+  }
+  function openFood() {
+    renderFood();
+    $('scrim').classList.add('open');
+    $('foodSheet').classList.add('open');
+    $('foodSheet').scrollTop = 0;
+  }
+  $('qFood').onclick = openFood;
+  $('foodClose').onclick = () => closeSheet();
 
   /* ---- 백업 / 복원 ---- */
   const LAST_KEY = 'unhaeng.lastBackup';

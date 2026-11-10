@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="app-version" content="14">
+<meta name="app-version" content="15">
 <title>운행일지</title>
 <style>
   :root {
@@ -360,8 +360,8 @@
     <div class="row"><span>− 기준금</span><b id="rBase"></b></div>
     <div class="row"><span>− 환급후 가스비<small id="rGasNote"></small></span><b id="rGas"></b></div>
     <div class="row sum"><span>= 추가입금분</span><b id="rExtra"></b></div>
-    <div class="row"><span>− 수수료<small>회사매출의 10%</small></span><b id="rFee"></b></div>
-    <div class="row"><span>− 부가세<small>(회사매출 − 6,800,000) × 10%</small></span><b id="rVat"></b></div>
+    <div class="row"><span>− 수수료<small id="rFeeNote"></small></span><b id="rFee"></b></div>
+    <div class="row"><span>− 부가세<small id="rVatNote"></small></span><b id="rVat"></b></div>
     <label class="row input"><span>− 4대보험</span><input id="sIns" type="text" inputmode="numeric" placeholder="0" autocomplete="off"></label>
     <label class="row input"><span>− 과태료</span><input id="sFine" type="text" inputmode="numeric" placeholder="0" autocomplete="off"></label>
     <label class="row input"><span>− 노조비</span><input id="sUnion" type="text" inputmode="numeric" placeholder="0" autocomplete="off"></label>
@@ -376,9 +376,15 @@
     <div class="cmp" id="aCmp"></div>
   </div>
   <details class="adv" id="stAdv">
-    <summary>가스 환급 단가 바꾸기</summary>
-    <label for="sRefund">L당 가스비 환급 (원)</label>
+    <summary>정산 기준 바꾸기 (기준금·수수료·가스 환급)</summary>
+    <label for="sRefund">L당 가스비 환급 (원) · 이 달부터 적용</label>
     <input id="sRefund" type="text" inputmode="decimal" autocomplete="off">
+    <label for="rBaseIn">기준금 (원) · 모든 달에 적용</label>
+    <input id="rBaseIn" type="text" inputmode="numeric" autocomplete="off">
+    <label for="rVatBaseIn">부가세 기준 매출 (원) · 모든 달에 적용</label>
+    <input id="rVatBaseIn" type="text" inputmode="numeric" autocomplete="off">
+    <label for="rFeeIn">수수료율 (%) · 모든 달에 적용</label>
+    <input id="rFeeIn" type="text" inputmode="decimal" autocomplete="off">
   </details>
     </div>
     <div class="card" id="vatCard">
@@ -552,8 +558,20 @@
   /* ---- 정산 설정 (월별) ----
      저장 형식: { "2026-11": { ins: 4대보험, fine: 과태료, union: 노조비, refund: L당 환급, apay: 실제지급액, avat: 실제 부가세 } } */
   const SETTLE_KEY = 'unhaeng.settle.v1';
-  const VAT_BASE = 6800000;  // 부가세 기준 매출 (매달 고정)
-  const BASE = 4400000;      // 기준금 (매달 고정)
+  /* ---- 정산 기준 (사람마다 다를 수 있어 화면에서 수정 가능) ----
+     저장 형식(unhaeng.rules.v1): { base: 기준금, vatBase: 부가세 기준 매출, feeRate: 수수료율(%) } */
+  const RULES_KEY = 'unhaeng.rules.v1';
+  const RULES_DEF = { base: 4400000, vatBase: 6800000, feeRate: 10 };
+  function normRules(o) {
+    const r = { ...RULES_DEF };
+    if (o && typeof o === 'object') {
+      for (const f of ['base', 'vatBase']) { const n = Number(o[f]); if (Number.isFinite(n) && n >= 0) r[f] = Math.round(n); }
+      const fr = Number(o.feeRate); if (Number.isFinite(fr) && fr >= 0 && fr <= 100) r.feeRate = Math.round(fr * 100) / 100;
+    }
+    return r;
+  }
+  let rules = (() => { try { return normRules(JSON.parse(localStorage.getItem(RULES_KEY))); } catch (e) { return { ...RULES_DEF }; } })();
+  const saveRules = () => localStorage.setItem(RULES_KEY, JSON.stringify(rules));
   const SETTLE_DEF = { refund: 137.845, ins: 0, union: 0 };
   function normSettle(obj) {
     const out = {};
@@ -641,9 +659,9 @@
     const sales = t.sumD * 10 / 9 + t.sumT;            // 회사매출 = 입금합×10/9 + 톨비합
     const refund = t.gc.l * s.refund;                    // 가스비 환급 = 회사가스(L) × L당 환급
     const gasNet = t.gc.w - refund;                      // 환급후 가스비
-    const extra = sales - BASE - gasNet;               // 추가입금분
-    const fee = sales * 0.1;                             // 수수료
-    const vat = (sales - VAT_BASE) * 0.1;                // 부가세 (엑셀의 성과금 9:1)
+    const extra = sales - rules.base - gasNet;           // 추가입금분
+    const fee = sales * (rules.feeRate / 100);           // 수수료
+    const vat = (sales - rules.vatBase) * 0.1;           // 부가세 (엑셀의 성과금 9:1)
     const final = extra - s.ins - vat - s.fine - fee - s.union;  // 최종지급액
     const margin = t.sumD ? final / t.sumD : 0;          // 마진율 = 최종지급액 ÷ 입금합
     return { sales, refund, gasNet, extra, fee, vat, final, margin };
@@ -766,7 +784,9 @@
       $('stPn').textContent = `일평균(${pj.work}일 기준)으로 남은 ${pj.remain}일${pj.off ? `(휴무 ${pj.off}일 제외)` : ''}을 채운 예상이에요`;
     }
     $('rSales').textContent = money(r.sales);
-    $('rBase').textContent = money(BASE);
+    $('rBase').textContent = money(rules.base);
+    $('rFeeNote').textContent = `회사매출의 ${rules.feeRate}%`;
+    $('rVatNote').textContent = `(회사매출 − ${fmt(rules.vatBase)}) × 10%`;
     $('rGas').textContent = money(r.gasNet);
     $('rGasNote').textContent = `가스 ${money(t.gc.w)} − 환급 ${money(r.refund)}`;
     $('rExtra').textContent = money(r.extra);
@@ -792,6 +812,9 @@
     setVal('sApay', s.apay ? fmt(s.apay) : '');
     setVal('sAvat', s.avat ? fmt(s.avat) : '');
     setVal('sRefund', String(s.refund));
+    setVal('rBaseIn', fmt(rules.base));
+    setVal('rVatBaseIn', fmt(rules.vatBase));
+    setVal('rFeeIn', String(rules.feeRate));
     $('stNote').textContent = s._saved ? '' : '이 달 정산값을 아직 입력하지 않았어요. 지난달 값으로 계산 중이에요.';
     updateSettle();
   }
@@ -806,6 +829,19 @@
     $(id).addEventListener('input', ev => { fmtWonInput(ev.target); onSettleInput(); });
   }
   $('sRefund').addEventListener('input', ev => { fmtLiterInput(ev.target); onSettleInput(); });
+  // 정산 기준: 비우면 기본값으로 계산
+  function onRulesInput() {
+    const fr = parseFloat($('rFeeIn').value);
+    rules = normRules({
+      base: $('rBaseIn').value.trim() ? parseWon($('rBaseIn').value) : RULES_DEF.base,
+      vatBase: $('rVatBaseIn').value.trim() ? parseWon($('rVatBaseIn').value) : RULES_DEF.vatBase,
+      feeRate: Number.isFinite(fr) ? fr : RULES_DEF.feeRate
+    });
+    saveRules();
+    updateSettle();
+  }
+  for (const id of ['rBaseIn', 'rVatBaseIn']) $(id).addEventListener('input', ev => { fmtWonInput(ev.target); onRulesInput(); });
+  $('rFeeIn').addEventListener('input', ev => { ev.target.value = ev.target.value.replace(/[^0-9.]/g, ''); onRulesInput(); });
 
   // 반기 부가세: 1~6월 합 / 7~12월 합 (확정된 달은 실제 금액, 나머지는 계산값)
   function renderVatHalf(sLive) {
@@ -1123,7 +1159,8 @@
       exported: new Date().toISOString(),
       records: data,
       settle: settle,
-      goal: goal
+      goal: goal,
+      rules: rules
     });
     $('bkText').value = payload;
     let ok = false;
@@ -1167,6 +1204,7 @@
     if (sn) { settle = n ? cleanSettle : { ...settle, ...cleanSettle }; saveSettle(); }
     const g = Math.round(num(obj.goal));
     if (g) { goal = g; saveGoal(); }
+    if (obj.rules && typeof obj.rules === 'object') { rules = normRules(obj.rules); saveRules(); }
     render(); closeSheet();
     toast(`${parts.join('과 ')}을 복원했어요`);
   };

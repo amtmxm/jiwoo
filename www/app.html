@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="app-version" content="16">
+<meta name="app-version" content="17">
 <title>운행일지</title>
 <style>
   :root {
@@ -358,7 +358,8 @@
   <div class="calc">
     <div class="row"><span>회사매출<small>입금합 × 10/9 + 톨비합</small></span><b id="rSales"></b></div>
     <div class="row"><span>− 기준금</span><b id="rBase"></b></div>
-    <div class="row"><span>− 환급후 가스비<small id="rGasNote"></small></span><b id="rGas"></b></div>
+    <label class="row input"><span>회사가스 L당 단가<small>매달 바뀌면 입력 (원)</small></span><input id="sGprice" type="text" inputmode="decimal" placeholder="0" autocomplete="off"></label>
+    <div class="row"><span>− 회사가스비<small id="rGasNote"></small></span><b id="rGas"></b></div>
     <div class="row sum"><span>= 추가입금분</span><b id="rExtra"></b></div>
     <div class="row"><span>− 수수료<small id="rFeeNote"></small></span><b id="rFee"></b></div>
     <div class="row"><span>− 부가세<small id="rVatNote"></small></span><b id="rVat"></b></div>
@@ -376,9 +377,7 @@
     <div class="cmp" id="aCmp"></div>
   </div>
   <details class="adv" id="stAdv">
-    <summary>정산 기준 바꾸기 (기준금·수수료·가스 환급)</summary>
-    <label for="sRefund">L당 가스비 환급 (원) · 이 달부터 적용</label>
-    <input id="sRefund" type="text" inputmode="decimal" autocomplete="off">
+    <summary>정산 기준 바꾸기 (기준금·수수료)</summary>
     <label for="rBaseIn">기준금 (원) · 모든 달에 적용</label>
     <input id="rBaseIn" type="text" inputmode="numeric" autocomplete="off">
     <label for="rVatBaseIn">부가세 기준 매출 (원) · 모든 달에 적용</label>
@@ -556,7 +555,7 @@
   const money = n => { n = Math.round(n); return (n < 0 ? '−' : '') + fmt(Math.abs(n)); };
 
   /* ---- 정산 설정 (월별) ----
-     저장 형식: { "2026-11": { ins: 4대보험, fine: 과태료, union: 노조비, refund: L당 환급, apay: 실제지급액, avat: 실제 부가세 } } */
+     저장 형식: { "2026-11": { ins: 4대보험, fine: 과태료, union: 노조비, gprice: 회사가스 L당 단가, refund: (예전) L당 환급 — 더 이상 계산에 안 씀, apay: 실제지급액, avat: 실제 부가세 } } */
   const SETTLE_KEY = 'unhaeng.settle.v1';
   /* ---- 정산 기준 (사람마다 다를 수 있어 화면에서 수정 가능) ----
      저장 형식(unhaeng.rules.v1): { base: 기준금, vatBase: 부가세 기준 매출, feeRate: 수수료율(%) } */
@@ -572,7 +571,7 @@
   }
   let rules = (() => { try { return normRules(JSON.parse(localStorage.getItem(RULES_KEY))); } catch (e) { return { ...RULES_DEF }; } })();
   const saveRules = () => localStorage.setItem(RULES_KEY, JSON.stringify(rules));
-  const SETTLE_DEF = { refund: 137.845, ins: 0, union: 0 };
+  const SETTLE_DEF = { gprice: 1067.46, refund: 137.845, ins: 0, union: 0 };
   function normSettle(obj) {
     const out = {};
     if (!obj || typeof obj !== 'object') return out;
@@ -589,6 +588,8 @@
       }
       const rf = Number(v.refund);
       if (Number.isFinite(rf) && rf > 0) r.refund = Math.round(rf * 1000) / 1000;
+      const gp = Number(v.gprice);
+      if (Number.isFinite(gp) && gp > 0) r.gprice = Math.round(gp * 1000) / 1000;
       if (Object.keys(r).length) out[k] = r;
     }
     return out;
@@ -602,7 +603,7 @@
     const key = ymKey(y, m);
     const prev = Object.keys(settle).filter(k => k < key).sort().reverse();
     const out = { ...SETTLE_DEF, fine: 0 };
-    for (const f of ['refund', 'ins', 'union']) {
+    for (const f of ['gprice', 'refund', 'ins', 'union']) {
       for (const k of prev) { if (settle[k][f] != null) { out[f] = settle[k][f]; break; } }
     }
     Object.assign(out, settle[key] || {});
@@ -657,14 +658,13 @@
   // 정산 계산 (엑셀 수식과 동일)
   function settleCalc(t, s) {
     const sales = t.sumD * 10 / 9 + t.sumT;            // 회사매출 = 입금합×10/9 + 톨비합
-    const refund = t.gc.l * s.refund;                    // 가스비 환급 = 회사가스(L) × L당 환급
-    const gasNet = t.gc.w - refund;                      // 환급후 가스비
+    const gasNet = t.gc.l * s.gprice;                    // 회사가스비 = 회사가스(L) × L당 단가
     const extra = sales - rules.base - gasNet;           // 추가입금분
     const fee = sales * (rules.feeRate / 100);           // 수수료
     const vat = (sales - rules.vatBase) * 0.1;           // 부가세 (엑셀의 성과금 9:1)
     const final = extra - s.ins - vat - s.fine - fee - s.union;  // 최종지급액
     const margin = t.sumD ? final / t.sumD : 0;          // 마진율 = 최종지급액 ÷ 입금합
-    return { sales, refund, gasNet, extra, fee, vat, final, margin };
+    return { sales, gasNet, extra, fee, vat, final, margin };
   }
 
   function render() {
@@ -764,7 +764,7 @@
   function readSettle() {
     return {
       ins: parseWon($('sIns').value), fine: parseWon($('sFine').value), union: parseWon($('sUnion').value),
-      refund: parseL($('sRefund').value) || SETTLE_DEF.refund,
+      gprice: parseL($('sGprice').value) || SETTLE_DEF.gprice,
       apay: parseWon($('sApay').value), avat: parseWon($('sAvat').value)
     };
   }
@@ -788,7 +788,7 @@
     $('rFeeNote').textContent = `회사매출의 ${rules.feeRate}%`;
     $('rVatNote').textContent = `(회사매출 − ${fmt(rules.vatBase)}) × 10%`;
     $('rGas').textContent = money(r.gasNet);
-    $('rGasNote').textContent = `가스 ${money(t.gc.w)} − 환급 ${money(r.refund)}`;
+    $('rGasNote').textContent = `${fmtL(t.gc.l)}L × ${fmtL(s.gprice)}원`;
     $('rExtra').textContent = money(r.extra);
     $('rFee').textContent = money(r.fee);
     $('rVat').textContent = money(r.vat);
@@ -811,7 +811,7 @@
     setVal('sUnion', s.union ? fmt(s.union) : '');
     setVal('sApay', s.apay ? fmt(s.apay) : '');
     setVal('sAvat', s.avat ? fmt(s.avat) : '');
-    setVal('sRefund', String(s.refund));
+    setVal('sGprice', String(s.gprice));
     setVal('rBaseIn', fmt(rules.base));
     setVal('rVatBaseIn', fmt(rules.vatBase));
     setVal('rFeeIn', String(rules.feeRate));
@@ -821,14 +821,15 @@
   // 입력하면 바로 계산하고 자동 저장
   function onSettleInput() {
     updateSettle();
-    settle[ymKey(year, month)] = readSettle();
+    const k = ymKey(year, month);
+    settle[k] = { ...(settle[k] || {}), ...readSettle() };   // 예전 refund 값은 지우지 않음
     saveSettle();
     $('stNote').textContent = '';
   }
   for (const id of ['sIns', 'sFine', 'sUnion', 'sApay', 'sAvat']) {
     $(id).addEventListener('input', ev => { fmtWonInput(ev.target); onSettleInput(); });
   }
-  $('sRefund').addEventListener('input', ev => { fmtLiterInput(ev.target); onSettleInput(); });
+  $('sGprice').addEventListener('input', ev => { fmtLiterInput(ev.target); onSettleInput(); });
   // 정산 기준: 비우면 기본값으로 계산
   function onRulesInput() {
     const fr = parseFloat($('rFeeIn').value);

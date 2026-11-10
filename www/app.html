@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="app-version" content="18">
+<meta name="app-version" content="19">
 <title>운행일지</title>
 <style>
   :root {
@@ -997,6 +997,24 @@
 
   $('prev').onclick = () => { month--; if (month < 0) { month = 11; year--; } render(); };
   $('next').onclick = () => { month++; if (month > 11) { month = 0; year++; } render(); };
+  // 첫 화면에서 좌우로 밀면 이전 달 / 다음 달 (세로 스크롤·짧은 터치는 무시)
+  (() => {
+    let sx = 0, sy = 0, st = 0, on = false;
+    const scr = $('screen');
+    scr.addEventListener('touchstart', ev => {
+      if (ev.touches.length !== 1 || document.querySelector('.sheet.open')) { on = false; return; }
+      sx = ev.touches[0].clientX; sy = ev.touches[0].clientY; st = Date.now(); on = true;
+    }, { passive: true });
+    scr.addEventListener('touchend', ev => {
+      if (!on) return;
+      on = false;
+      const t = ev.changedTouches[0];
+      const dx = t.clientX - sx, dy = t.clientY - sy;
+      if (Date.now() - st > 800 || Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      $(dx < 0 ? 'next' : 'prev').onclick();
+    }, { passive: true });
+    scr.addEventListener('touchcancel', () => { on = false; }, { passive: true });
+  })();
 
   /* ---- 인천공항 체크인 카운터 ---- */
   const SELF = '[셀프체크인 · 셀프백드롭 전용 카운터]';

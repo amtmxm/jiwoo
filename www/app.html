@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="app-version" content="13">
+<meta name="app-version" content="14">
 <title>운행일지</title>
 <style>
   :root {
@@ -89,10 +89,10 @@
   .sub:empty { display: none; }
   .sub i { font-style: normal; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin: 0 4px 0 10px; }
   .sub i:first-child { margin-left: 0; }
-  i.toll, .dot.toll { background: var(--toll); }
-  i.cash, .dot.cash { background: var(--cash); }
-  i.gas, .dot.gas { background: var(--gas); }
-  i.pgas, .dot.pgas { background: var(--pgas); }
+  i.toll { background: var(--toll); }
+  i.cash { background: var(--cash); }
+  i.gas { background: var(--gas); }
+  i.pgas { background: var(--pgas); }
 
   .week, .grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); padding: 0 8px; }
   .week div { text-align: center; font-size: 13px; padding: 4px 0; color: var(--muted); }
@@ -114,8 +114,6 @@
   .cell .d { font-size: 15px; font-weight: 600; }
   .cell.sun .d { color: var(--sun); }
   .cell.sat .d { color: var(--sat); }
-  .cell .dots { display: flex; gap: 3px; min-height: 6px; }
-  .cell .dot { width: 6px; height: 6px; border-radius: 50%; }
   .cell .a {
     font-size: min(11px, 2.9vw); font-weight: 600; color: var(--accent); letter-spacing: -0.02em;
     font-variant-numeric: tabular-nums; min-height: 14px; white-space: nowrap;
@@ -669,17 +667,12 @@
     for (let d = 1; d <= days; d++) {
       const rec = data[keyOf(year, month, d)] || {};
       const g = rec.g || [];
-      const hasC = g.some(e => e.k !== 'p'), hasP = g.some(e => e.k === 'p');
       const dow = (first + d - 1) % 7;
       const b = document.createElement('button');
       b.className = 'cell' + (dow === 0 ? ' sun' : '') + (dow === 6 ? ' sat' : '')
         + (rec.d ? ' has' : '') + (rec.off && !rec.d ? ' off' : '')
         + (year === nowD.getFullYear() && month === nowD.getMonth() && d === nowD.getDate() ? ' today' : '');
-      const dots = (rec.t ? '<span class="dot toll"></span>' : '')
-        + (rec.c ? '<span class="dot cash"></span>' : '')
-        + (hasC ? '<span class="dot gas"></span>' : '')
-        + (hasP ? '<span class="dot pgas"></span>' : '');
-      b.innerHTML = `<span class="top"><span class="d">${d}</span><span class="dots">${dots}</span></span>`
+      b.innerHTML = `<span class="top"><span class="d">${d}</span></span>`
         + `<span class="a">${rec.d ? fmt(rec.d) : (rec.off ? '휴무' : '')}</span>`;
       b.onclick = () => openSheet(d);
       grid.appendChild(b);

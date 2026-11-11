@@ -14,6 +14,7 @@
 ## 꼭 지킬 것
 
 1. **`app.html`을 고치면 맨 위의 `<meta name="app-version" content="N">` 숫자를 1 올리세요.** 안 올리면 앱이 업데이트를 인식하지 못해요.
+   **같은 버전 번호로 바로 아래 `<script type="application/json" id="patchNotes">`에 패치노트 줄을 맨 위에 추가하세요.** (예: `"29": ["바뀐 점 1", "바뀐 점 2"]`, 사용자가 읽는 짧은 한국어) 업데이트 배너가 뜨면 이 목록에서 지금 버전보다 높은 것만 골라 창으로 보여주고, 사용자가 "업데이트"를 눌러야 적용돼요. JSON 형식이 깨지지 않게 하세요.
 2. 저장 데이터 키를 바꾸지 마세요: `unhaeng.records.v3`, `unhaeng.settle.v1`, `unhaeng.goal.v1`, `unhaeng.rules.v1`, `unhaeng.lastBackup`. 형식을 바꿔야 하면 옛 데이터를 읽어 옮기는 코드를 함께 넣고, 옛 키는 지우지 마세요.
 3. 데이터 형식을 바꾸면 **백업/복원**도 옛 백업과 호환되게 하세요. (복원은 v1·v2·v3 백업을 모두 읽어요.)
 4. 업데이트용 키 `unhaeng.ota`, `unhaeng.pending`, `unhaeng.bad`와 `app-version` 읽는 정규식(`name="app-version" content="숫자"`)을 건드리지 마세요. 스크립트 끝의 `localStorage.removeItem('unhaeng.pending')`는 업데이트 실패 시 자동 복구에 쓰여요.

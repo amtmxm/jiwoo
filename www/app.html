@@ -3,12 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="app-version" content="31">
+<meta name="app-version" content="32">
 <title>운행일지</title>
 <!-- 패치노트: 버전 번호마다 바뀐 점을 짧게. app.html을 고칠 때마다 새 버전 줄을 맨 위에 추가하세요.
      앱이 새 버전 파일을 받으면 이 목록에서 "지금 버전보다 높은 것"만 골라 업데이트 창에 보여줘요. -->
 <script type="application/json" id="patchNotes">
 {
+  "32": ["항공편 목록에 오늘 운항편 전체 표시 (새벽 4시 ~ 다음날 새벽 4시), 열면 지금 시각 근처부터", "자정 넘어 뜨고 내리는 편에는 '다음날' 표시"],
   "31": ["출발편 카운터를 '1터 3번'처럼 번호만 표시", "출발편 상세: 터미널 칸에 카운터 번호 표시", "카운터 정보가 없는 항공사는 '1터 ㅡ 카운터정보없음'으로 표시"],
   "30": ["도착편: 아직 입국 인원이 잡히기 전인 편은 '인원 집계 전'으로 표시", "항공편 목록을 3시간 전부터 보여주고, 열면 지금 시각 근처 편부터 보이게", "항공편 화면 위쪽 새로고침 옆에 닫기 버튼 추가"],
   "29": ["항공편 목록 간소화: 1터/2터만 표시, 게이트·출구·수취대·입국장 삭제", "도시 이름 뒤에 나라 표시 (예: 오사카/간사이(일본))", "출발편에 체크인 카운터 번호 표시 (예: 1터 12 (L))", "입국 0명인 편은 인원 표시 숨김"],
@@ -221,6 +222,7 @@
   .fldet b { font-weight: 600; text-align: right; }
   .fltime { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
   .fltime s { display: block; font-size: 11px; font-weight: 500; color: var(--muted); }
+  .fltime .nd { display: block; font-style: normal; font-size: 10px; font-weight: 700; color: var(--toll); }
   .flmain { min-width: 0; }
   .flmain b { font-size: 15px; }
   .flmain small { color: var(--muted); font-size: 12px; margin-left: 4px; }
@@ -1366,10 +1368,23 @@
     if (m === 'LIMIT') return '오늘 조회 한도를 넘었거나 활용신청이 안 된 API예요.';
     return '불러오지 못했어요. 인터넷 연결을 확인하고 새로고침을 눌러 주세요.';
   }
+  const OP_START_H = 4;   // 운항일 시작 시각 (첫 비행기 새벽 4~5시, 마지막 다음날 새벽 1~2시)
+  function opDay() {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (now.getHours() < OP_START_H ? 1 : 0), OP_START_H, 0);
+    const next = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1);
+    return { start, next };
+  }
   async function loadFlights(kind) {
-    // 검색할 수 있게 오늘 하루치를 한 번에 받아 둠 (목록은 화면에서 시간대로 거름)
-    const params = { searchDate: ymdOf(new Date()), searchFrom: '0000', searchTo: '2400', passengerOrCargo: 'P' };
-    const list = await apiGetAll('statusOfAllFltDeOdp/' + (kind === 'arr' ? 'getFltArrivalsDeOdp' : 'getFltDeparturesDeOdp'), params, 1000);
+    // 오늘 운항일 전체를 받아 둠: 새벽 4시 ~ 다음날 새벽 4시 (새벽 4시 전이면 어제 운항일)
+    const op = opDay();
+    const path = 'statusOfAllFltDeOdp/' + (kind === 'arr' ? 'getFltArrivalsDeOdp' : 'getFltDeparturesDeOdp');
+    const [a, b] = await Promise.all([
+      apiGetAll(path, { searchDate: ymdOf(op.start), searchFrom: '0400', searchTo: '2400', passengerOrCargo: 'P' }, 1000),
+      apiGetAll(path, { searchDate: ymdOf(op.next), searchFrom: '0000', searchTo: '0359', passengerOrCargo: 'P' }, 1000)
+    ]);
+    const seen = new Set();
+    const list = a.concat(b).filter(f => { const k = f.fid || (f.flightId + (f.scheduleDateTime || f.scheduleDatetime)); if (seen.has(k)) return false; seen.add(k); return true; });
     // 가이드 표(scheduleDatetime)와 예제(scheduleDateTime)의 대소문자가 달라서 둘 다 받음
     for (const f of list) {
       f.scheduleDateTime = f.scheduleDateTime || f.scheduleDatetime;
@@ -1508,9 +1523,9 @@
         const ids = `${f.flightId || ''}${f._csIds || ''}`.toLowerCase().replace(/\s+/g, '');
         return ids.includes(q) || matchText(`${f.airline || ''} ${f.airport || ''} ${f.airportCode || ''}`.toLowerCase(), q);
       }
-      const t = flMin(f.estimatedDateTime || f.scheduleDateTime);
-      return t >= nowM - 180 && t <= nowM + 240;   // 검색 안 할 때는 지금 3시간 전 ~ 4시간 뒤
+      return true;   // 검색 안 할 때는 오늘 운항 전체 (열면 지금 시각 근처로 스크롤)
     });
+    const opNext = ymdOf(opDay().next);
     const rows = shown.map(f => {
       const est = f.estimatedDateTime || f.scheduleDateTime, sch = f.scheduleDateTime;
       const changed = est && sch && est !== sch;
@@ -1525,13 +1540,13 @@
       const past = kind === 'arr' ? /도착/.test(f.remark || '') : (/출발/.test(f.remark || '') || (est && est < nowHm && !/지연/.test(f.remark || '')));
       const key = f.fid || (f.flightId + (f.scheduleDateTime || ''));
       flShown[key] = { f, kind, p };
-      return `<div class="flrow${past ? ' past' : ''}${flOpen.has(key) ? ' open' : ''}" data-k="${key}" data-t="${flMin(est)}"><div class="fltime">${hmOf(est)}${changed ? `<s>${hmOf(sch)}</s>` : ''}</div>`
+      return `<div class="flrow${past ? ' past' : ''}${flOpen.has(key) ? ' open' : ''}" data-k="${key}" data-t="${flMin(est)}"><div class="fltime">${hmOf(est)}${String(est).slice(0, 8) === opNext ? '<i class="nd">다음날</i>' : ''}${changed ? `<s>${hmOf(sch)}</s>` : ''}</div>`
         + `<div class="flmain"><b>${f.flightId || ''}</b><small>${f.airline || ''}</small>`
         + `<div class="flsub">${kind === 'arr' ? '출발 ' : '도착 '}${cityOf(f)}${sub ? ` · ${sub}` : ''}</div>${paxTxt}</div>`
         + `<div>${f.remark ? `<span class="flst ${stClass(f.remark)}">${f.remark}</span>` : ''}</div></div>`
         + (flOpen.has(key) ? flDetail(f, kind, p) : '');
     }).join('');
-    return rows || `<div class="empty">${q ? '오늘 검색 결과가 없어요' : '해당 시간대 항공편이 없어요'}</div>`;
+    return rows || `<div class="empty">${q ? '오늘 검색 결과가 없어요' : '오늘 운항 정보가 없어요'}</div>`;
   }
   // 항공편을 누르면 그 아래에 상세 정보 펼치기
   const flShown = {}, flOpen = new Set();
@@ -1637,7 +1652,7 @@
     const d = new Date(Math.min(...need.map(k => flCache[k].at)));
     $('flInfo').textContent = `${pad(d.getHours())}:${pad(d.getMinutes())} 기준`
       + (tab === 'pax' ? '' : $('flSearch').value.trim() ? ` · 오늘 ${tab === 'arr' ? '도착' : '출발'}편 전체에서 검색`
-        : ` · 지금 3시간 전 ~ 4시간 뒤 ${tab === 'arr' ? '도착' : '출발'} 여객편`);
+        : ` · 오늘 ${tab === 'arr' ? '도착' : '출발'} 여객편 전체 (새벽 4시 ~ 다음날 새벽 4시)`);
     $('flSearch').hidden = tab === 'pax';
     $('flList').innerHTML = tab === 'pax' ? renderPax(flCache.cong.v, flCache.notice.v)
       : renderFlightList(tab, flCache[tab].v, tab === 'arr' ? paxByFlight(flCache.cong.v) : null);

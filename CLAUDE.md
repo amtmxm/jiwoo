@@ -56,4 +56,6 @@
 
 - 항공사 카운터 데이터에서 티웨이항공은 **트리니티항공 (Trinity Airways)** 로 표기해요. 검색에서는 "티웨이"로도 찾아져요.
 - 카운터는 "카운터" 버튼 하나로 1터·2터를 한 화면에 보여주고, 검색도 둘 다에서 해요. 다른 이름 검색은 `ALIAS`에 추가해요 (예: 중국국제항공 ↔ 에어차이나).
+- "항공편" 버튼: 공공데이터포털(인천공항공사) API로 도착·출발편과 입국 인원을 보여줘요. 도착/출발 `statusOfAllFltDeOdp`(getFltArrivalsDeOdp / getFltDeparturesDeOdp), 입국 인원 `StatusOfArrivals/getArrivalsCongestion`(편명별 내국인·외국인, −2~+2시간), 입국장 예상 인원 `passgrAnncmt/getPassgrAnncmt`. 웹뷰 교차출처 차단을 피하려고 앱에서는 `Capacitor.Plugins.CapacitorHttp`로 불러와요.
+- **인증키는 저장소에 절대 넣지 마세요.** (공개 저장소예요) 앱의 항공편 화면에서 입력해 폰에만 저장해요 (`unhaeng.apikey`).
 - 이 규칙 파일(`CLAUDE.md`)만 바꾸는 커밋에는 APK 빌드가 한 번 돌 수 있어요. 해롭지는 않아요.

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="app-version" content="21">
+<meta name="app-version" content="22">
 <title>운행일지</title>
 <style>
   :root {
@@ -190,6 +190,12 @@
   .fltabs.sub button.on { background: var(--accent-soft); color: var(--accent); }
   .flrow { display: grid; grid-template-columns: 50px 1fr auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
   .flrow.past { opacity: .55; }
+  .flrow.open { opacity: 1; border-bottom: 0; }
+  .fldet { background: var(--bg); border-radius: 12px; padding: 6px 12px; margin: 0 0 10px; font-size: 13px; }
+  .fldet > div { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .fldet > div:last-child { border-bottom: 0; }
+  .fldet span { color: var(--muted); white-space: nowrap; }
+  .fldet b { font-weight: 600; text-align: right; }
   .fltime { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
   .fltime s { display: block; font-size: 11px; font-weight: 500; color: var(--muted); }
   .flmain { min-width: 0; }
@@ -1289,7 +1295,16 @@
       f.scheduleDateTime = f.scheduleDateTime || f.scheduleDatetime;
       f.estimatedDateTime = f.estimatedDateTime || f.estimatedDatetime;
     }
-    return list.filter(f => f.codeshare !== 'Slave')
+    // 공동운항(Slave) 편은 목록에서 숨기고, 원래 편(Master)의 상세에 편명으로 붙임
+    const masters = list.filter(f => f.codeshare !== 'Slave');
+    const byId = {};
+    for (const f of masters) { f._cs = []; byId[f.flightId + '|' + f.scheduleDateTime] = f; }
+    for (const f of list) {
+      if (f.codeshare !== 'Slave') continue;
+      const m = byId[(f.masterFlightId || '') + '|' + f.scheduleDateTime];
+      if (m) m._cs.push(`${f.flightId}${f.airline ? ` (${f.airline})` : ''}`);
+    }
+    return masters
       .sort((a, b) => String(a.estimatedDateTime || a.scheduleDateTime).localeCompare(String(b.estimatedDateTime || b.scheduleDateTime)));
   }
   // 터미널을 안 정하면 1터만 와서, 1터·2터를 따로 불러 합침
@@ -1318,13 +1333,58 @@
         : [TER_NAME[f.terminalId] || '', f.chkinRange ? `카운터 ${f.chkinRange}` : '', f.gateNumber ? `탑승구 ${f.gateNumber}` : ''];
       const paxTxt = p ? `<div class="flsub"><span class="pax">입국 ${fmt(p.n)}명</span> (내국인 ${fmt(p.k)} · 외국인 ${fmt(p.f)})${p.g ? ` · ${p.g}입국장` : ''}</div>` : '';
       const past = kind === 'arr' ? /도착/.test(f.remark || '') : (/출발/.test(f.remark || '') || (est && est < nowHm && !/지연/.test(f.remark || '')));
-      return `<div class="flrow${past ? ' past' : ''}"><div class="fltime">${hmOf(est)}${changed ? `<s>${hmOf(sch)}</s>` : ''}</div>`
+      const key = f.fid || (f.flightId + (f.scheduleDateTime || ''));
+      flShown[key] = { f, kind, p };
+      return `<div class="flrow${past ? ' past' : ''}${flOpen.has(key) ? ' open' : ''}" data-k="${key}"><div class="fltime">${hmOf(est)}${changed ? `<s>${hmOf(sch)}</s>` : ''}</div>`
         + `<div class="flmain"><b>${f.flightId || ''}</b><small>${f.airline || ''}</small>`
         + `<div class="flsub">${kind === 'arr' ? '출발 ' : '도착 '}${f.airport || ''} · ${sub.filter(Boolean).join(' · ')}</div>${paxTxt}</div>`
-        + `<div>${f.remark ? `<span class="flst ${stClass(f.remark)}">${f.remark}</span>` : ''}</div></div>`;
+        + `<div>${f.remark ? `<span class="flst ${stClass(f.remark)}">${f.remark}</span>` : ''}</div></div>`
+        + (flOpen.has(key) ? flDetail(f, kind, p) : '');
     }).join('');
     return rows || '<div class="empty">해당 시간대 항공편이 없어요</div>';
   }
+  // 항공편을 누르면 그 아래에 상세 정보 펼치기
+  const flShown = {}, flOpen = new Set();
+  const AC = { '32N': 'A320neo', '320': 'A320', '321': 'A321', '32Q': 'A321neo', '319': 'A319', '330': 'A330', '332': 'A330-200', '333': 'A330-300', '339': 'A330-900neo',
+    '359': 'A350-900', '351': 'A350-1000', '35K': 'A350-1000', '388': 'A380', '380': 'A380', '738': 'B737-800', '7M8': 'B737 MAX 8', '73H': 'B737-800', '739': 'B737-900',
+    '744': 'B747-400', '74H': 'B747-8', '748': 'B747-8', '772': 'B777-200', '773': 'B777-300', '77W': 'B777-300ER', '788': 'B787-8', '789': 'B787-9', '78X': 'B787-10', '763': 'B767-300' };
+  const flMin = s => { s = String(s || ''); return s.length >= 12 ? new Date(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8), +s.slice(8, 10), +s.slice(10, 12)).getTime() / 60000 : NaN; };
+  function flDetail(f, kind, p) {
+    const sch = f.scheduleDateTime, est = f.estimatedDateTime || sch;
+    const diff = Math.round(flMin(est) - flMin(sch));
+    const rows = [
+      ['편명', `${f.flightId || ''} · ${f.airline || ''}`],
+      [kind === 'arr' ? '출발지' : '도착지', `${f.airport || ''}${f.airportCode ? ` (${f.airportCode})` : ''}`],
+      ['예정 시각', hmOf(sch)],
+      ['변경 시각', est && est !== sch ? `${hmOf(est)} (${diff > 0 ? `${diff}분 늦어짐` : `${-diff}분 빨라짐`})` : ''],
+      ['상태', f.remark || '예정'],
+      ['터미널', { P01: '제1여객터미널', P02: '탑승동 (1터에서 셔틀트레인)', P03: '제2여객터미널' }[f.terminalId] || f.terminalId || ''],
+      kind === 'dep' ? ['체크인 카운터', f.chkinRange] : ['수하물 수취대', f.carousel],
+      [kind === 'arr' ? '도착 게이트' : '탑승구', f.gateNumber],
+      kind === 'arr' ? ['출구', f.exitNumber] : null,
+      ['주기장', f.fstandPosition],
+      p ? ['입국 인원', `${fmt(p.n)}명 (내국인 ${fmt(p.k)} · 외국인 ${fmt(p.f)})`] : null,
+      p && p.g ? ['입국장', `${p.g}입국장`] : null,
+      ['기종', f.aircraftSubtype || f.aircraftSubType ? `${AC[f.aircraftSubtype || f.aircraftSubType] || ''} ${AC[f.aircraftSubtype || f.aircraftSubType] ? `(${f.aircraftSubtype || f.aircraftSubType})` : (f.aircraftSubtype || f.aircraftSubType)}`.trim() : ''],
+      ['등록기호', f.aircraftRegNo && f.aircraftRegNo !== '-' ? f.aircraftRegNo : ''],
+      ['공동운항', f._cs && f._cs.length ? f._cs.join(', ') : ''],
+      ['구분', f.typeOfFlight === 'D' ? '국내선' : f.typeOfFlight === 'I' ? '국제선' : '']
+    ].filter(r => r && r[1] && r[1] !== '-');
+    return `<div class="fldet">${rows.map(r => `<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div>`;
+  }
+  $('flList').addEventListener('click', ev => {
+    const row = ev.target.closest('.flrow');
+    if (!row || !row.dataset.k) return;
+    const k = row.dataset.k, info = flShown[k];
+    const next = row.nextElementSibling;
+    if (flOpen.has(k)) {
+      flOpen.delete(k); row.classList.remove('open');
+      if (next && next.classList.contains('fldet')) next.remove();
+    } else if (info) {
+      flOpen.add(k); row.classList.add('open');
+      row.insertAdjacentHTML('afterend', flDetail(info.f, info.kind, info.p));
+    }
+  });
   function paxByFlight(cong) {
     const m = {};
     for (const c of cong || []) {

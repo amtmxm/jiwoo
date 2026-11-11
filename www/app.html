@@ -3,8 +3,23 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="app-version" content="27">
+<meta name="app-version" content="28">
 <title>운행일지</title>
+<!-- 패치노트: 버전 번호마다 바뀐 점을 짧게. app.html을 고칠 때마다 새 버전 줄을 맨 위에 추가하세요.
+     앱이 새 버전 파일을 받으면 이 목록에서 "지금 버전보다 높은 것"만 골라 업데이트 창에 보여줘요. -->
+<script type="application/json" id="patchNotes">
+{
+  "28": ["업데이트할 때 바뀐 점(패치노트)을 먼저 보여주고 확인 후 업데이트"],
+  "27": ["달을 넘길 때 입력칸 숫자가 다른 달로 따라가던 문제 수정", "월 목표 매출을 달별로 설정", "가스 단가에 쉼표(,)를 누르면 소수점으로 입력"],
+  "26": ["숫자 칸 중간을 고쳐도 커서가 맨 뒤로 가지 않게"],
+  "25": ["기준금·부가세 기준·수수료율을 달별로 설정"],
+  "24": ["항공편 상세 정보 간소화 (터미널은 1터/2터만)"],
+  "23": ["항공편 검색창 추가 (편명·항공사·공항, 오늘 전체)"],
+  "22": ["항공편을 누르면 상세 정보 펼치기"],
+  "21": ["입국 인원에서 2터가 0명으로 나오던 문제 수정"],
+  "20": ["항공편 버튼 추가: 도착·출발편, 입국 인원, 입국장 예상 인원"]
+}
+</script>
 <style>
   :root {
     --bg: #f3f5f4;
@@ -221,6 +236,13 @@
   .flsec { font-size: 14px; font-weight: 800; margin: 14px 0 6px; }
   #flSearch[hidden] { display: none; }
   #flKeyBox input { width: 100%; padding: 12px; font-size: 14px; font-weight: 500; text-align: left; margin: 0 0 10px; }
+
+  /* 패치노트 */
+  #pnList { margin: 0 0 16px; }
+  .pnver { font-size: 13px; font-weight: 800; color: var(--accent); margin: 12px 0 4px; }
+  .pnver:first-child { margin-top: 0; }
+  #pnList ul { margin: 0; padding-left: 20px; }
+  #pnList li { font-size: 15px; line-height: 1.5; padding: 3px 0; }
 
   /* 하단 버튼 */
   .footbtns { display: flex; justify-content: center; gap: 4px; }
@@ -537,6 +559,16 @@
     <input id="flKey" type="text" autocomplete="off" spellcheck="false" placeholder="비워 두면 기본 인증키 사용">
   </details>
   <div class="btns" style="margin-top:6px"><button id="flClose">닫기</button></div>
+</div>
+
+<div class="sheet" id="pnSheet">
+  <h2 id="pnTitle">새 버전이 있어요</h2>
+  <p class="hint">이번 업데이트에서 바뀐 점이에요.</p>
+  <div id="pnList"></div>
+  <div class="btns">
+    <button id="pnLater">나중에</button>
+    <button class="save" id="pnOk">업데이트</button>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1074,6 +1106,7 @@
     $('tSheet').classList.remove('open');
     $('foodSheet').classList.remove('open');
     $('flSheet').classList.remove('open');
+    $('pnSheet').classList.remove('open');
     if (document.activeElement) document.activeElement.blur();
   }
 
@@ -1643,6 +1676,13 @@
         $('updText').textContent = `새 버전 v${v}이 있어요`;
         $('update').hidden = false;
         if (manual) { closeSheet(); }
+        // 새 버전마다 한 번은 바뀐 점 창을 자동으로 띄움 (그 뒤로는 배너의 업데이트 버튼으로)
+        let seen = 0;
+        try { seen = +(localStorage.getItem(PN_SEEN) || 0); } catch (e) {}
+        if (manual || seen < v) {
+          try { localStorage.setItem(PN_SEEN, String(v)); } catch (e) {}
+          if (!document.querySelector('.sheet.open')) showPatchNotes();
+        }
       } else if (manual) {
         toast(`최신 버전이에요 (v${APP_VERSION})`);
       }
@@ -1650,12 +1690,35 @@
       if (manual) toast('업데이트를 확인하지 못했어요. 인터넷 연결을 확인하세요');
     }
   }
-  $('updBtn').onclick = () => {
+  function applyUpdate() {
     if (!newHtml) return;
     localStorage.setItem('unhaeng.ota', JSON.stringify({ v: newVer, html: newHtml }));
     localStorage.removeItem('unhaeng.bad');
     location.reload();
-  };
+  }
+  // 패치노트: 새 버전 파일 안의 <script id="patchNotes"> 목록에서 지금 버전보다 높은 것만 보여줌
+  const PN_SEEN = 'unhaeng.pnSeen';
+  function notesOf(h) {
+    const m = /<script type="application\/json" id="patchNotes">([\s\S]*?)<\/script>/.exec(h || '');
+    if (!m) return [];
+    let o; try { o = JSON.parse(m[1]); } catch (e) { return []; }
+    return Object.keys(o).map(Number).filter(v => v > APP_VERSION && v <= newVer).sort((a, b) => b - a)
+      .map(v => ({ v, items: (Array.isArray(o[v]) ? o[v] : [o[v]]).map(String) }));
+  }
+  const esc = t => t.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function showPatchNotes() {
+    const list = notesOf(newHtml);
+    $('pnTitle').textContent = `새 버전 v${newVer}`;
+    $('pnList').innerHTML = list.length
+      ? list.map(n => `<div class="pnver">v${n.v}</div><ul>${n.items.map(t => `<li>${esc(t)}</li>`).join('')}</ul>`).join('')
+      : '<p class="hint">이번 버전의 변경 내용 설명이 없어요.</p>';
+    $('scrim').classList.add('open');
+    $('pnSheet').classList.add('open');
+    $('pnSheet').scrollTop = 0;
+  }
+  $('updBtn').onclick = showPatchNotes;
+  $('pnOk').onclick = applyUpdate;
+  $('pnLater').onclick = () => closeSheet();
   $('bkUpdate').onclick = () => checkUpdate(true);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) render();

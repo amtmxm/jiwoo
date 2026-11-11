@@ -523,9 +523,9 @@
   <p class="hint" id="flInfo"></p>
   <div id="flList"></div>
   <details class="adv" id="flKeyBox">
-    <summary>공공데이터 인증키</summary>
-    <p class="hint">data.go.kr에서 받은 "일반 인증키"를 붙여넣으세요. 이 폰에만 저장돼요.</p>
-    <input id="flKey" type="text" autocomplete="off" spellcheck="false" placeholder="인증키 붙여넣기">
+    <summary>다른 인증키 쓰기 (선택)</summary>
+    <p class="hint">기본 인증키가 들어 있어서 그냥 쓰면 돼요. 내 키를 따로 쓰고 싶을 때만 붙여넣으세요. 비우면 기본 키로 돌아가요.</p>
+    <input id="flKey" type="text" autocomplete="off" spellcheck="false" placeholder="비워 두면 기본 인증키 사용">
   </details>
   <div class="btns" style="margin-top:6px"><button id="flClose">닫기</button></div>
 </div>
@@ -1220,14 +1220,18 @@
      도착/출발: statusOfAllFltDeOdp (getFltArrivalsDeOdp / getFltDeparturesDeOdp)
      입국 인원: StatusOfArrivals/getArrivalsCongestion (지금 기준 −2~+2시간, 편명별 내국인·외국인 수)
      입국장 예고: passgrAnncmt/getPassgrAnncmt (오늘 시간대별 예상 인원)
-     인증키는 저장소에 넣지 않고 폰에만 저장 (unhaeng.apikey) */
+     기본 인증키는 알아보기 어렵게 바꿔서 넣어 둠 (뒤집기 + XOR + base64, 3조각).
+     폰에서 다른 키를 입력하면 그 키(unhaeng.apikey)를 우선 사용 */
   const API_KEY = 'unhaeng.apikey';
   const API_BASE = 'https://apis.data.go.kr/B551177/';
   const TER_NAME = { P01: '1터', P02: '탑승동', P03: '2터' };
   const TER_OF = { P01: 'T1', P02: 'T1', P03: 'T2' };
   let flTab = 'arr', flTer = '';
   const flCache = {};
-  const apiKey = () => { try { return (localStorage.getItem(API_KEY) || '').trim(); } catch (e) { return ''; } };
+  const KP = ['bmM5O29vPm5tOGNubGJpO2loOWk/b', 'zg4OWxqOWprP24/aT5ubDhrbGo+bz', '5oPj44PjttOGNobGg5aWloPmNrYg=='];
+  const defKey = () => { try { return [...atob(KP.join(''))].map(c => String.fromCharCode(c.charCodeAt(0) ^ 0x5a)).reverse().join(''); } catch (e) { return ''; } };
+  const userKey = () => { try { return (localStorage.getItem(API_KEY) || '').trim(); } catch (e) { return ''; } };
+  const apiKey = () => userKey() || defKey();
 
   // 앱 안에서는 네이티브 통신(CapacitorHttp)으로 불러와 브라우저의 교차 출처 차단을 피함
   async function apiGet(path, params) {
@@ -1263,7 +1267,7 @@
   const numOf = v => Math.round(Number(v) || 0);
   function flErr(e) {
     const m = String(e && e.message || e);
-    if (m === 'NOKEY') return '아래 "공공데이터 인증키"에 인증키를 넣어 주세요.';
+    if (m === 'NOKEY') return '인증키가 없어요. 아래 "다른 인증키 쓰기"에 넣어 주세요.';
     if (m === 'KEY') return '인증키가 맞지 않아요. 키를 다시 확인해 주세요. (신청 직후면 1시간쯤 뒤에 될 수도 있어요)';
     if (m === 'LIMIT') return '오늘 조회 한도를 넘었거나 활용신청이 안 된 API예요.';
     return '불러오지 못했어요. 인터넷 연결을 확인하고 새로고침을 눌러 주세요.';
@@ -1383,8 +1387,8 @@
       : renderFlightList(tab, flCache[tab].v, tab === 'arr' ? paxByFlight(flCache.cong.v) : null);
   }
   function openFlights() {
-    $('flKey').value = apiKey();
-    $('flKeyBox').open = !apiKey();
+    $('flKey').value = userKey();
+    $('flKeyBox').open = false;
     $('scrim').classList.add('open');
     $('flSheet').classList.add('open');
     $('flSheet').scrollTop = 0;

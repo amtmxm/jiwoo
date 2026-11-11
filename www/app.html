@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="app-version" content="22">
+<meta name="app-version" content="23">
 <title>운행일지</title>
 <style>
   :root {
@@ -219,6 +219,7 @@
   .paxtbl tr.cur td { color: var(--accent); font-weight: 800; }
   .paxtbl tr.past td { color: var(--muted); }
   .flsec { font-size: 14px; font-weight: 800; margin: 14px 0 6px; }
+  #flSearch[hidden] { display: none; }
   #flKeyBox input { width: 100%; padding: 12px; font-size: 14px; font-weight: 500; text-align: left; margin: 0 0 10px; }
 
   /* 하단 버튼 */
@@ -526,6 +527,7 @@
     <button type="button" data-ter="T1">1터</button>
     <button type="button" data-ter="T2">2터</button>
   </div>
+  <input class="search" id="flSearch" type="search" placeholder="편명·항공사·공항 검색 (예: OZ542, 아시아나, 오사카)" autocomplete="off">
   <p class="hint" id="flInfo"></p>
   <div id="flList"></div>
   <details class="adv" id="flKeyBox">
@@ -1265,8 +1267,19 @@
     if (code && code !== '00') throw new Error('CODE ' + code + ' ' + (res.header.resultMsg || ''));
     let items = res.body && res.body.items;
     if (items && items.item) items = items.item;
-    if (!items) return [];
-    return Array.isArray(items) ? items : [items];
+    items = !items ? [] : Array.isArray(items) ? items : [items];
+    items.total = Number(res.body && res.body.totalCount) || items.length;
+    return items;
+  }
+  // 여러 쪽으로 나눠 오는 목록을 끝까지 받기 (최대 5쪽)
+  async function apiGetAll(path, params, per) {
+    let all = [];
+    for (let page = 1; page <= 5; page++) {
+      const part = await apiGet(path, { ...params, numOfRows: per, pageNo: page });
+      all = all.concat(part);
+      if (!part.length || all.length >= part.total) break;
+    }
+    return all;
   }
   const ymdOf = d => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
   const hmOf = s => { s = String(s || ''); return s.length >= 12 ? `${s.slice(8, 10)}:${s.slice(10, 12)}` : ''; };
@@ -1279,17 +1292,9 @@
     return '불러오지 못했어요. 인터넷 연결을 확인하고 새로고침을 눌러 주세요.';
   }
   async function loadFlights(kind) {
-    const now = new Date();
-    const from = new Date(now.getTime() - 60 * 60000);
-    const to = new Date(now.getTime() + 4 * 60 * 60000);
-    const sameDay = d => ymdOf(d) === ymdOf(now);
-    const params = {
-      searchDate: ymdOf(now),
-      searchFrom: sameDay(from) ? `${pad(from.getHours())}${pad(from.getMinutes())}` : '0000',
-      searchTo: sameDay(to) ? `${pad(to.getHours())}${pad(to.getMinutes())}` : '2400',
-      passengerOrCargo: 'P', numOfRows: 500, pageNo: 1
-    };
-    const list = await apiGet('statusOfAllFltDeOdp/' + (kind === 'arr' ? 'getFltArrivalsDeOdp' : 'getFltDeparturesDeOdp'), params);
+    // 검색할 수 있게 오늘 하루치를 한 번에 받아 둠 (목록은 화면에서 시간대로 거름)
+    const params = { searchDate: ymdOf(new Date()), searchFrom: '0000', searchTo: '2400', passengerOrCargo: 'P' };
+    const list = await apiGetAll('statusOfAllFltDeOdp/' + (kind === 'arr' ? 'getFltArrivalsDeOdp' : 'getFltDeparturesDeOdp'), params, 1000);
     // 가이드 표(scheduleDatetime)와 예제(scheduleDateTime)의 대소문자가 달라서 둘 다 받음
     for (const f of list) {
       f.scheduleDateTime = f.scheduleDateTime || f.scheduleDatetime;
@@ -1302,7 +1307,7 @@
     for (const f of list) {
       if (f.codeshare !== 'Slave') continue;
       const m = byId[(f.masterFlightId || '') + '|' + f.scheduleDateTime];
-      if (m) m._cs.push(`${f.flightId}${f.airline ? ` (${f.airline})` : ''}`);
+      if (m) { m._cs.push(`${f.flightId}${f.airline ? ` (${f.airline})` : ''}`); m._csIds = (m._csIds || '') + ' ' + f.flightId; }
     }
     return masters
       .sort((a, b) => String(a.estimatedDateTime || a.scheduleDateTime).localeCompare(String(b.estimatedDateTime || b.scheduleDateTime)));
@@ -1324,7 +1329,18 @@
   }
   function renderFlightList(kind, list, pax) {
     const nowHm = (() => { const d = new Date(); return `${ymdOf(d)}${pad(d.getHours())}${pad(d.getMinutes())}`; })();
-    const rows = list.filter(f => !flTer || TER_OF[f.terminalId] === flTer).map(f => {
+    const q = $('flSearch').value.trim().toLowerCase().replace(/\s+/g, '');
+    const nowM = Date.now() / 60000;
+    const shown = list.filter(f => {
+      if (flTer && TER_OF[f.terminalId] !== flTer) return false;
+      if (q) {
+        const ids = `${f.flightId || ''}${f._csIds || ''}`.toLowerCase().replace(/\s+/g, '');
+        return ids.includes(q) || matchText(`${f.airline || ''} ${f.airport || ''} ${f.airportCode || ''}`.toLowerCase(), q);
+      }
+      const t = flMin(f.estimatedDateTime || f.scheduleDateTime);
+      return t >= nowM - 60 && t <= nowM + 240;   // 검색 안 할 때는 지금 1시간 전 ~ 4시간 뒤
+    });
+    const rows = shown.map(f => {
       const est = f.estimatedDateTime || f.scheduleDateTime, sch = f.scheduleDateTime;
       const changed = est && sch && est !== sch;
       const p = pax && pax[f.flightId];
@@ -1341,7 +1357,7 @@
         + `<div>${f.remark ? `<span class="flst ${stClass(f.remark)}">${f.remark}</span>` : ''}</div></div>`
         + (flOpen.has(key) ? flDetail(f, kind, p) : '');
     }).join('');
-    return rows || '<div class="empty">해당 시간대 항공편이 없어요</div>';
+    return rows || `<div class="empty">${q ? '오늘 검색 결과가 없어요' : '해당 시간대 항공편이 없어요'}</div>`;
   }
   // 항공편을 누르면 그 아래에 상세 정보 펼치기
   const flShown = {}, flOpen = new Set();
@@ -1446,9 +1462,16 @@
       }
     }
     if (tab !== flTab) return;
+    flDraw(need);
+  }
+  // 받아 둔 자료로 화면만 다시 그림 (검색 입력할 때는 다시 부르지 않음)
+  function flDraw(need) {
+    const tab = flTab;
     const d = new Date(Math.min(...need.map(k => flCache[k].at)));
     $('flInfo').textContent = `${pad(d.getHours())}:${pad(d.getMinutes())} 기준`
-      + (tab === 'pax' ? '' : ` · 지금 1시간 전 ~ 4시간 뒤 ${tab === 'arr' ? '도착' : '출발'} 여객편`);
+      + (tab === 'pax' ? '' : $('flSearch').value.trim() ? ` · 오늘 ${tab === 'arr' ? '도착' : '출발'}편 전체에서 검색`
+        : ` · 지금 1시간 전 ~ 4시간 뒤 ${tab === 'arr' ? '도착' : '출발'} 여객편`);
+    $('flSearch').hidden = tab === 'pax';
     $('flList').innerHTML = tab === 'pax' ? renderPax(flCache.cong.v, flCache.notice.v)
       : renderFlightList(tab, flCache[tab].v, tab === 'arr' ? paxByFlight(flCache.cong.v) : null);
   }
@@ -1461,6 +1484,10 @@
     renderFl(false);
   }
   $('qFlight').onclick = openFlights;
+  $('flSearch').addEventListener('input', () => {
+    const need = flTab === 'arr' ? ['arr', 'cong'] : ['dep'];
+    if (flTab !== 'pax' && need.every(k => flCache[k])) flDraw(need);
+  });
   $('flClose').onclick = () => closeSheet();
   $('flRefresh').onclick = () => renderFl(true);
   $('flTabs').addEventListener('click', ev => {

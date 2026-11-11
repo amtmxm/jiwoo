@@ -3,12 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="app-version" content="33">
+<meta name="app-version" content="34">
 <title>운행일지</title>
 <!-- 패치노트: 버전 번호마다 바뀐 점을 짧게. app.html을 고칠 때마다 새 버전 줄을 맨 위에 추가하세요.
      앱이 새 버전 파일을 받으면 이 목록에서 "지금 버전보다 높은 것"만 골라 업데이트 창에 보여줘요. -->
 <script type="application/json" id="patchNotes">
 {
+  "34": ["입국 인원 탭에서 전체/1터/2터 버튼 없애고 1터·2터를 항상 같이 표시"],
   "33": ["입국 인원: 시간대별 예상 인원을 오늘 운항일 전체(새벽 4시 ~ 다음날 새벽 4시)로 표시", "입국장(B·C·D 등) 구분 표시 삭제, 내국인·외국인 숫자만", "지금 입국 중인 편별 인원 목록 추가 (외국인 많은 순, 출발지 표시)"],
   "32": ["항공편 목록에 오늘 운항편 전체 표시 (새벽 4시 ~ 다음날 새벽 4시), 열면 지금 시각 근처부터", "자정 넘어 뜨고 내리는 편에는 '다음날' 표시"],
   "31": ["출발편 카운터를 '1터 3번'처럼 번호만 표시", "출발편 상세: 터미널 칸에 카운터 번호 표시", "카운터 정보가 없는 항공사는 '1터 ㅡ 카운터정보없음'으로 표시"],
@@ -255,7 +256,7 @@
   .paxn { text-align: right; font-size: 12px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .paxn span { display: block; }
   .paxn b { color: var(--accent); font-size: 15px; }
-  #flSearch[hidden] { display: none; }
+  #flSearch[hidden], #flTer[hidden] { display: none; }
   #flKeyBox input { width: 100%; padding: 12px; font-size: 14px; font-weight: 500; text-align: left; margin: 0 0 10px; }
 
   /* 패치노트 */
@@ -1614,7 +1615,7 @@
   }
   function renderPax(cong, notice, arrList) {
     const nowD = new Date();
-    const ters = flTer ? [flTer] : ['T1', 'T2'];
+    const ters = ['T1', 'T2'];   // 입국 인원 탭은 1터·2터 필터 없이 항상 둘 다
     let html = '<div class="flsec">지금 입국 중 (도착 −2시간 ~ +2시간)</div><div class="paxbig">';
     for (const t of ['T1', 'T2']) {
       const list = (cong || []).filter(c => c.terno === t);
@@ -1690,6 +1691,7 @@
       + (tab === 'pax' ? '' : $('flSearch').value.trim() ? ` · 오늘 ${tab === 'arr' ? '도착' : '출발'}편 전체에서 검색`
         : ` · 오늘 ${tab === 'arr' ? '도착' : '출발'} 여객편 전체 (새벽 4시 ~ 다음날 새벽 4시)`);
     $('flSearch').hidden = tab === 'pax';
+    $('flTer').hidden = tab === 'pax';   // 입국 인원 탭에서는 전체/1터/2터 버튼 숨김
     $('flList').innerHTML = tab === 'pax' ? renderPax(flCache.cong.v, flCache.notice.v, flCache.arr && flCache.arr.v)
       : renderFlightList(tab, flCache[tab].v, tab === 'arr' ? paxByFlight(flCache.cong.v) : null);
     if (flJump) { flJump = false; jumpToNow(); }

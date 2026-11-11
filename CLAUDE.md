@@ -56,6 +56,6 @@
 
 - 항공사 카운터 데이터에서 티웨이항공은 **트리니티항공 (Trinity Airways)** 로 표기해요. 검색에서는 "티웨이"로도 찾아져요.
 - 카운터는 "카운터" 버튼 하나로 1터·2터를 한 화면에 보여주고, 검색도 둘 다에서 해요. 다른 이름 검색은 `ALIAS`에 추가해요 (예: 중국국제항공 ↔ 에어차이나).
-- "항공편" 버튼: 공공데이터포털(인천공항공사) API로 도착·출발편과 입국 인원을 보여줘요. 도착/출발 `statusOfAllFltDeOdp`(getFltArrivalsDeOdp / getFltDeparturesDeOdp), 입국 인원 `StatusOfArrivals/getArrivalsCongestion`(편명별 내국인·외국인, −2~+2시간), 입국장 예상 인원 `passgrAnncmt/getPassgrAnncmt`. 웹뷰 교차출처 차단을 피하려고 앱에서는 `Capacitor.Plugins.CapacitorHttp`로 불러와요.
+- "항공편" 버튼: 공공데이터포털(인천공항공사) API로 도착·출발편과 입국 인원을 보여줘요. 도착/출발 `statusOfAllFltDeOdp`(getFltArrivalsDeOdp / getFltDeparturesDeOdp), 입국 인원 `StatusOfArrivals/getArrivalsCongestion`(편명별 내국인·외국인, −2~+2시간, terno 없으면 1터만 와서 T1·T2 따로 호출), 입국장 예상 인원 `passgrAnncmt/getPassgrAnncmt`. 웹뷰 교차출처 차단을 피하려고 앱에서는 `Capacitor.Plugins.CapacitorHttp`로 불러와요.
 - 공공데이터 인증키는 사용자 요청으로 `app.html`의 `KP`에 알아보기 어렵게 바꿔서 넣었어요 (뒤집기 + XOR 0x5a + base64, 3조각). **원래 키 문자열을 그대로 파일에 쓰지 마세요.** 폰에서 다른 키를 넣으면 그게 우선이에요 (`unhaeng.apikey`). 키가 새면 data.go.kr에서 재발급하고 `KP`만 바꾸면 돼요.
 - 이 규칙 파일(`CLAUDE.md`)만 바꾸는 커밋에는 APK 빌드가 한 번 돌 수 있어요. 해롭지는 않아요.

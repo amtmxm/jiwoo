@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="app-version" content="20">
+<meta name="app-version" content="21">
 <title>운행일지</title>
 <style>
   :root {
@@ -1292,7 +1292,13 @@
     return list.filter(f => f.codeshare !== 'Slave')
       .sort((a, b) => String(a.estimatedDateTime || a.scheduleDateTime).localeCompare(String(b.estimatedDateTime || b.scheduleDateTime)));
   }
-  const loadCongestion = () => apiGet('StatusOfArrivals/getArrivalsCongestion', { numOfRows: 500, pageNo: 1 });
+  // 터미널을 안 정하면 1터만 와서, 1터·2터를 따로 불러 합침
+  async function loadCongestion() {
+    const parts = await Promise.all(['T1', 'T2'].map(t =>
+      apiGet('StatusOfArrivals/getArrivalsCongestion', { terno: t, numOfRows: 500, pageNo: 1 })
+        .then(list => list.map(c => ({ ...c, terno: c.terno || t })))));
+    return parts.flat();
+  }
   const loadNotice = () => apiGet('passgrAnncmt/getPassgrAnncmt', { selectdate: 0, numOfRows: 30, pageNo: 1 });
 
   function stClass(r) {

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="app-version" content="25">
+<meta name="app-version" content="26">
 <title>운행일지</title>
 <style>
   :root {
@@ -915,7 +915,7 @@
   $('sGprice').addEventListener('input', ev => { fmtLiterInput(ev.target); onSettleInput(); });
   // 정산 기준도 달별로 저장 (다른 정산값과 같이 이 달에 저장, 안 정한 다음 달은 이어서 사용)
   for (const id of ['rBaseIn', 'rVatBaseIn']) $(id).addEventListener('input', ev => { fmtWonInput(ev.target); onSettleInput(); });
-  $('rFeeIn').addEventListener('input', ev => { ev.target.value = ev.target.value.replace(/[^0-9.]/g, ''); onSettleInput(); });
+  $('rFeeIn').addEventListener('input', ev => { setKeepCursor(ev.target, ev.target.value.replace(/[^0-9.]/g, ''), /[0-9.]/g); onSettleInput(); });
 
   // 반기 부가세: 1~6월 합 / 7~12월 합 (확정된 달은 실제 금액, 나머지는 계산값)
   function renderVatHalf(sLive) {
@@ -946,15 +946,29 @@
   }
 
   /* ---- 입력 시트 ---- */
+  // 쉼표를 다시 찍어도 커서가 맨 뒤로 가지 않게: 커서 앞에 있던 숫자 개수만큼 지나간 자리로 되돌림
+  function setKeepCursor(el, v, keep) {
+    if (el.value === v) return;
+    let pos = null;
+    try { pos = el.selectionStart; } catch (e) {}
+    const atEnd = pos == null || pos >= el.value.length;
+    const before = atEnd ? 0 : (el.value.slice(0, pos).match(keep) || []).length;
+    el.value = v;
+    if (atEnd || document.activeElement !== el) return;
+    const one = new RegExp(keep.source);   // 한 글자 검사용 (g 플래그 없이)
+    let i = 0, c = 0;
+    while (i < v.length && c < before) { if (one.test(v[i])) c++; i++; }
+    try { el.setSelectionRange(i, i); } catch (e) {}
+  }
   function fmtWonInput(el) {
     const n = el.value.replace(/[^0-9]/g, '');
-    el.value = n ? fmt(n) : '';
+    setKeepCursor(el, n ? fmt(n) : '', /[0-9]/g);
   }
   function fmtLiterInput(el) {
     let v = el.value.replace(/[^0-9.]/g, '');
     const i = v.indexOf('.');
     if (i >= 0) v = v.slice(0, i + 1) + v.slice(i + 1).replace(/\./g, '').slice(0, 3);
-    el.value = v;
+    setKeepCursor(el, v, /[0-9.]/g);
   }
 
   function paintKind(row) {

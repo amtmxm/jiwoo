@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="app-version" content="19">
+<meta name="app-version" content="20">
 <title>운행일지</title>
 <style>
   :root {
@@ -179,6 +179,42 @@
   .fmeal.cur { background: var(--accent); }
   .fmeal.cur .fm, .fmeal.cur b { color: var(--surface); }
 
+  /* 항공편 */
+  .flhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .flhead h2 { margin: 0; }
+  .flhead button { border: 0; background: var(--accent-soft); color: var(--accent); font: inherit; font-size: 13px; font-weight: 700; padding: 8px 12px; border-radius: 10px; }
+  .fltabs { display: flex; gap: 6px; margin-bottom: 8px; }
+  .fltabs button { flex: 1; border: 1.5px solid var(--line); background: transparent; color: var(--muted); font: inherit; font-size: 14px; font-weight: 700; padding: 9px 0; border-radius: 12px; }
+  .fltabs button.on { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+  .fltabs.sub button { font-size: 13px; padding: 6px 0; border-radius: 10px; }
+  .fltabs.sub button.on { background: var(--accent-soft); color: var(--accent); }
+  .flrow { display: grid; grid-template-columns: 50px 1fr auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .flrow.past { opacity: .55; }
+  .fltime { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .fltime s { display: block; font-size: 11px; font-weight: 500; color: var(--muted); }
+  .flmain { min-width: 0; }
+  .flmain b { font-size: 15px; }
+  .flmain small { color: var(--muted); font-size: 12px; margin-left: 4px; }
+  .flsub { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.5; }
+  .flsub .pax { color: var(--accent); font-weight: 700; }
+  .flst { font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: var(--line); color: var(--muted); white-space: nowrap; }
+  .flst.ok { background: var(--accent-soft); color: var(--accent); }
+  .flst.bad { background: rgba(200,64,47,.15); color: var(--sun); }
+  .flst.warn { background: rgba(224,147,43,.2); color: var(--toll); }
+  .paxbig { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+  .paxbig > div { background: var(--bg); border-radius: 14px; padding: 10px; text-align: center; }
+  .paxbig .l { font-size: 12px; color: var(--muted); }
+  .paxbig .v { font-size: 22px; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .paxbig .s { font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.5; }
+  .paxtbl { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+  .paxtbl th { font-size: 12px; color: var(--muted); font-weight: 500; text-align: right; padding: 6px 4px; }
+  .paxtbl th:first-child, .paxtbl td:first-child { text-align: left; }
+  .paxtbl td { text-align: right; padding: 7px 4px; border-top: 1px solid var(--line); }
+  .paxtbl tr.cur td { color: var(--accent); font-weight: 800; }
+  .paxtbl tr.past td { color: var(--muted); }
+  .flsec { font-size: 14px; font-weight: 800; margin: 14px 0 6px; }
+  #flKeyBox input { width: 100%; padding: 12px; font-size: 14px; font-weight: 500; text-align: left; margin: 0 0 10px; }
+
   /* 하단 버튼 */
   .footbtns { display: flex; justify-content: center; gap: 4px; }
   .footbtns .backup-btn { margin: 0 4px 4px; }
@@ -317,6 +353,9 @@
   <div class="quick">
     <button class="qbtn" id="qCounter" type="button">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>카운터
+    </button>
+    <button class="qbtn" id="qFlight" type="button">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M2.5 19h19v2h-19v-2zm19.57-9.36c-.21-.8-1.04-1.28-1.84-1.06L14.92 10l-6.9-6.43-1.93.51 4.14 7.17-4.97 1.33-1.97-1.54-1.45.39 2.59 4.49L21 11.49c.81-.23 1.28-1.05 1.07-1.85z"/></svg>항공편
     </button>
     <button class="qbtn" id="qFood" type="button">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z"/></svg>식당
@@ -469,6 +508,28 @@
     <button id="bkClose">닫기</button>
   </div>
 </div>
+<div class="sheet" id="flSheet">
+  <div class="flhead"><h2>인천공항 항공편</h2><button type="button" id="flRefresh">새로고침</button></div>
+  <div class="fltabs" id="flTabs">
+    <button type="button" data-tab="arr" class="on">도착</button>
+    <button type="button" data-tab="dep">출발</button>
+    <button type="button" data-tab="pax">입국 인원</button>
+  </div>
+  <div class="fltabs sub" id="flTer">
+    <button type="button" data-ter="" class="on">전체</button>
+    <button type="button" data-ter="T1">1터</button>
+    <button type="button" data-ter="T2">2터</button>
+  </div>
+  <p class="hint" id="flInfo"></p>
+  <div id="flList"></div>
+  <details class="adv" id="flKeyBox">
+    <summary>다른 인증키 쓰기 (선택)</summary>
+    <p class="hint">기본 인증키가 들어 있어서 그냥 쓰면 돼요. 내 키를 따로 쓰고 싶을 때만 붙여넣으세요. 비우면 기본 키로 돌아가요.</p>
+    <input id="flKey" type="text" autocomplete="off" spellcheck="false" placeholder="비워 두면 기본 인증키 사용">
+  </details>
+  <div class="btns" style="margin-top:6px"><button id="flClose">닫기</button></div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -973,6 +1034,7 @@
     $('goalSheet').classList.remove('open');
     $('tSheet').classList.remove('open');
     $('foodSheet').classList.remove('open');
+    $('flSheet').classList.remove('open');
     if (document.activeElement) document.activeElement.blur();
   }
 
@@ -1153,6 +1215,205 @@
   }
   $('qFood').onclick = openFood;
   $('foodClose').onclick = () => closeSheet();
+
+  /* ---- 인천공항 항공편 · 입국 인원 (공공데이터포털 API) ----
+     도착/출발: statusOfAllFltDeOdp (getFltArrivalsDeOdp / getFltDeparturesDeOdp)
+     입국 인원: StatusOfArrivals/getArrivalsCongestion (지금 기준 −2~+2시간, 편명별 내국인·외국인 수)
+     입국장 예고: passgrAnncmt/getPassgrAnncmt (오늘 시간대별 예상 인원)
+     기본 인증키는 알아보기 어렵게 바꿔서 넣어 둠 (뒤집기 + XOR + base64, 3조각).
+     폰에서 다른 키를 입력하면 그 키(unhaeng.apikey)를 우선 사용 */
+  const API_KEY = 'unhaeng.apikey';
+  const API_BASE = 'https://apis.data.go.kr/B551177/';
+  const TER_NAME = { P01: '1터', P02: '탑승동', P03: '2터' };
+  const TER_OF = { P01: 'T1', P02: 'T1', P03: 'T2' };
+  let flTab = 'arr', flTer = '';
+  const flCache = {};
+  const KP = ['bmM5O29vPm5tOGNubGJpO2loOWk/b', 'zg4OWxqOWprP24/aT5ubDhrbGo+bz', '5oPj44PjttOGNobGg5aWloPmNrYg=='];
+  const defKey = () => { try { return [...atob(KP.join(''))].map(c => String.fromCharCode(c.charCodeAt(0) ^ 0x5a)).reverse().join(''); } catch (e) { return ''; } };
+  const userKey = () => { try { return (localStorage.getItem(API_KEY) || '').trim(); } catch (e) { return ''; } };
+  const apiKey = () => userKey() || defKey();
+
+  // 앱 안에서는 네이티브 통신(CapacitorHttp)으로 불러와 브라우저의 교차 출처 차단을 피함
+  async function apiGet(path, params) {
+    const key = apiKey();
+    if (!key) throw new Error('NOKEY');
+    const q = Object.entries({ ...params, type: 'json' }).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+    const url = `${API_BASE}${path}?serviceKey=${encodeURIComponent(key)}&${q}`;
+    let text;
+    const CH = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp;
+    if (CH) {
+      const r = await CH.get({ url, responseType: 'text' });
+      text = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+    } else {
+      text = await (await fetch(url)).text();
+    }
+    let j;
+    try { j = JSON.parse(text); } catch (e) {
+      const t = String(text || '');
+      if (/SERVICE_KEY|Unauthorized|등록되지 않은/i.test(t)) throw new Error('KEY');
+      if (/Forbidden|LIMITED|quota/i.test(t)) throw new Error('LIMIT');
+      throw new Error('FORMAT');
+    }
+    const res = j.response || j;
+    const code = res.header && res.header.resultCode;
+    if (code && code !== '00') throw new Error('CODE ' + code + ' ' + (res.header.resultMsg || ''));
+    let items = res.body && res.body.items;
+    if (items && items.item) items = items.item;
+    if (!items) return [];
+    return Array.isArray(items) ? items : [items];
+  }
+  const ymdOf = d => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+  const hmOf = s => { s = String(s || ''); return s.length >= 12 ? `${s.slice(8, 10)}:${s.slice(10, 12)}` : ''; };
+  const numOf = v => Math.round(Number(v) || 0);
+  function flErr(e) {
+    const m = String(e && e.message || e);
+    if (m === 'NOKEY') return '인증키가 없어요. 아래 "다른 인증키 쓰기"에 넣어 주세요.';
+    if (m === 'KEY') return '인증키가 맞지 않아요. 키를 다시 확인해 주세요. (신청 직후면 1시간쯤 뒤에 될 수도 있어요)';
+    if (m === 'LIMIT') return '오늘 조회 한도를 넘었거나 활용신청이 안 된 API예요.';
+    return '불러오지 못했어요. 인터넷 연결을 확인하고 새로고침을 눌러 주세요.';
+  }
+  async function loadFlights(kind) {
+    const now = new Date();
+    const from = new Date(now.getTime() - 60 * 60000);
+    const to = new Date(now.getTime() + 4 * 60 * 60000);
+    const sameDay = d => ymdOf(d) === ymdOf(now);
+    const params = {
+      searchDate: ymdOf(now),
+      searchFrom: sameDay(from) ? `${pad(from.getHours())}${pad(from.getMinutes())}` : '0000',
+      searchTo: sameDay(to) ? `${pad(to.getHours())}${pad(to.getMinutes())}` : '2400',
+      passengerOrCargo: 'P', numOfRows: 500, pageNo: 1
+    };
+    const list = await apiGet('statusOfAllFltDeOdp/' + (kind === 'arr' ? 'getFltArrivalsDeOdp' : 'getFltDeparturesDeOdp'), params);
+    // 가이드 표(scheduleDatetime)와 예제(scheduleDateTime)의 대소문자가 달라서 둘 다 받음
+    for (const f of list) {
+      f.scheduleDateTime = f.scheduleDateTime || f.scheduleDatetime;
+      f.estimatedDateTime = f.estimatedDateTime || f.estimatedDatetime;
+    }
+    return list.filter(f => f.codeshare !== 'Slave')
+      .sort((a, b) => String(a.estimatedDateTime || a.scheduleDateTime).localeCompare(String(b.estimatedDateTime || b.scheduleDateTime)));
+  }
+  const loadCongestion = () => apiGet('StatusOfArrivals/getArrivalsCongestion', { numOfRows: 500, pageNo: 1 });
+  const loadNotice = () => apiGet('passgrAnncmt/getPassgrAnncmt', { selectdate: 0, numOfRows: 30, pageNo: 1 });
+
+  function stClass(r) {
+    if (/결항|회항/.test(r)) return 'bad';
+    if (/지연/.test(r)) return 'warn';
+    if (/도착|착륙|출발|탑승/.test(r)) return 'ok';
+    return '';
+  }
+  function renderFlightList(kind, list, pax) {
+    const nowHm = (() => { const d = new Date(); return `${ymdOf(d)}${pad(d.getHours())}${pad(d.getMinutes())}`; })();
+    const rows = list.filter(f => !flTer || TER_OF[f.terminalId] === flTer).map(f => {
+      const est = f.estimatedDateTime || f.scheduleDateTime, sch = f.scheduleDateTime;
+      const changed = est && sch && est !== sch;
+      const p = pax && pax[f.flightId];
+      const sub = kind === 'arr'
+        ? [TER_NAME[f.terminalId] || '', f.gateNumber ? `게이트 ${f.gateNumber}` : '', f.exitNumber ? `출구 ${f.exitNumber}` : '', f.carousel ? `수취대 ${f.carousel}` : '']
+        : [TER_NAME[f.terminalId] || '', f.chkinRange ? `카운터 ${f.chkinRange}` : '', f.gateNumber ? `탑승구 ${f.gateNumber}` : ''];
+      const paxTxt = p ? `<div class="flsub"><span class="pax">입국 ${fmt(p.n)}명</span> (내국인 ${fmt(p.k)} · 외국인 ${fmt(p.f)})${p.g ? ` · ${p.g}입국장` : ''}</div>` : '';
+      const past = kind === 'arr' ? /도착/.test(f.remark || '') : (/출발/.test(f.remark || '') || (est && est < nowHm && !/지연/.test(f.remark || '')));
+      return `<div class="flrow${past ? ' past' : ''}"><div class="fltime">${hmOf(est)}${changed ? `<s>${hmOf(sch)}</s>` : ''}</div>`
+        + `<div class="flmain"><b>${f.flightId || ''}</b><small>${f.airline || ''}</small>`
+        + `<div class="flsub">${kind === 'arr' ? '출발 ' : '도착 '}${f.airport || ''} · ${sub.filter(Boolean).join(' · ')}</div>${paxTxt}</div>`
+        + `<div>${f.remark ? `<span class="flst ${stClass(f.remark)}">${f.remark}</span>` : ''}</div></div>`;
+    }).join('');
+    return rows || '<div class="empty">해당 시간대 항공편이 없어요</div>';
+  }
+  function paxByFlight(cong) {
+    const m = {};
+    for (const c of cong || []) {
+      const k = numOf(c.korean), f = numOf(c.foreigner);
+      m[c.flightid] = { k, f, n: k + f, g: c.entrygate || '', t: c.terno };
+    }
+    return m;
+  }
+  function renderPax(cong, notice) {
+    const nowD = new Date();
+    const ters = flTer ? [flTer] : ['T1', 'T2'];
+    let html = '<div class="flsec">지금 입국 중 (도착 −2시간 ~ +2시간)</div><div class="paxbig">';
+    for (const t of ['T1', 'T2']) {
+      const list = (cong || []).filter(c => c.terno === t);
+      let k = 0, f = 0; const gates = {};
+      for (const c of list) { const n = numOf(c.korean) + numOf(c.foreigner); k += numOf(c.korean); f += numOf(c.foreigner); if (c.entrygate) gates[c.entrygate] = (gates[c.entrygate] || 0) + n; }
+      const gtxt = Object.keys(gates).sort().map(g => `${g} ${fmt(gates[g])}`).join(' · ');
+      html += `<div style="${ters.includes(t) ? '' : 'opacity:.45'}"><div class="l">${t === 'T1' ? '1터' : '2터'} · ${list.length}편</div><div class="v">${fmt(k + f)}명</div><div class="s">내국인 ${fmt(k)} · 외국인 ${fmt(f)}${gtxt ? `<br>${gtxt}` : ''}</div></div>`;
+    }
+    html += '</div>';
+    if (notice && notice.length) {
+      html += '<div class="flsec">오늘 시간대별 입국장 예상 인원</div><table class="paxtbl"><tr><th>시간</th>'
+        + (ters.includes('T1') ? '<th>1터</th>' : '') + (ters.includes('T2') ? '<th>2터</th>' : '') + '</tr>';
+      for (const r of notice) {
+        const m = /^(\d{2})_(\d{2})$/.exec(r.atime || '');
+        if (!m) continue;
+        const h = +m[1];
+        if (h < nowD.getHours() - 1) continue;   // 지난 시간대는 직전 1시간만 보여줌
+        const cls = h === nowD.getHours() ? 'cur' : (h < nowD.getHours() ? 'past' : '');
+        html += `<tr class="${cls}"><td>${m[1]}~${m[2]}시</td>`
+          + (ters.includes('T1') ? `<td>${fmt(numOf(r.t1egsum1))}</td>` : '')
+          + (ters.includes('T2') ? `<td>${fmt(numOf(r.t2egsum1))}</td>` : '') + '</tr>';
+      }
+      html += '</table><p class="hint" style="margin-top:8px">예상 인원은 인천공항이 미리 낸 예고 자료예요. 실제와 다를 수 있어요.</p>';
+    }
+    return html;
+  }
+  async function renderFl(force) {
+    const tab = flTab;
+    const need = tab === 'pax' ? ['cong', 'notice'] : tab === 'arr' ? ['arr', 'cong'] : ['dep'];
+    const fresh = k => flCache[k] && Date.now() - flCache[k].at < 60000;
+    if (!apiKey()) { $('flInfo').textContent = ''; $('flList').innerHTML = `<div class="empty">${flErr('NOKEY')}</div>`; $('flKeyBox').open = true; return; }
+    if (force || !need.every(fresh)) {
+      $('flInfo').textContent = '불러오는 중…';
+      try {
+        await Promise.all(need.map(async k => {
+          if (!force && fresh(k)) return;
+          const v = k === 'cong' ? await loadCongestion().catch(e => { if (tab === 'pax') throw e; return []; })
+            : k === 'notice' ? await loadNotice().catch(() => [])
+            : await loadFlights(k);
+          flCache[k] = { at: Date.now(), v };
+        }));
+      } catch (e) {
+        if (tab !== flTab) return;
+        $('flInfo').textContent = '';
+        $('flList').innerHTML = `<div class="empty">${flErr(e)}</div>`;
+        if (/KEY/.test(String(e.message))) $('flKeyBox').open = true;
+        return;
+      }
+    }
+    if (tab !== flTab) return;
+    const d = new Date(Math.min(...need.map(k => flCache[k].at)));
+    $('flInfo').textContent = `${pad(d.getHours())}:${pad(d.getMinutes())} 기준`
+      + (tab === 'pax' ? '' : ` · 지금 1시간 전 ~ 4시간 뒤 ${tab === 'arr' ? '도착' : '출발'} 여객편`);
+    $('flList').innerHTML = tab === 'pax' ? renderPax(flCache.cong.v, flCache.notice.v)
+      : renderFlightList(tab, flCache[tab].v, tab === 'arr' ? paxByFlight(flCache.cong.v) : null);
+  }
+  function openFlights() {
+    $('flKey').value = userKey();
+    $('flKeyBox').open = false;
+    $('scrim').classList.add('open');
+    $('flSheet').classList.add('open');
+    $('flSheet').scrollTop = 0;
+    renderFl(false);
+  }
+  $('qFlight').onclick = openFlights;
+  $('flClose').onclick = () => closeSheet();
+  $('flRefresh').onclick = () => renderFl(true);
+  $('flTabs').addEventListener('click', ev => {
+    const b = ev.target.closest('button'); if (!b) return;
+    flTab = b.dataset.tab;
+    for (const x of $('flTabs').children) x.classList.toggle('on', x === b);
+    renderFl(false);
+  });
+  $('flTer').addEventListener('click', ev => {
+    const b = ev.target.closest('button'); if (!b) return;
+    flTer = b.dataset.ter;
+    for (const x of $('flTer').children) x.classList.toggle('on', x === b);
+    renderFl(false);
+  });
+  $('flKey').addEventListener('change', () => {
+    try { localStorage.setItem(API_KEY, $('flKey').value.trim()); } catch (e) {}
+    for (const k of Object.keys(flCache)) delete flCache[k];
+    renderFl(true);
+  });
 
   /* ---- 백업 / 복원 ---- */
   const LAST_KEY = 'unhaeng.lastBackup';

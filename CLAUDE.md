@@ -40,7 +40,9 @@
 
 `{ "2026-11-09": { d: 입금, t: 톨비, c: 현금, off: 1(휴무), g: [ { k: 'c'(회사)|'p'(개인), l: 리터, w: 금액 } ] } }`
 
-월별 정산값(`unhaeng.settle.v1`): `{ "2026-11": { ins, fine, union, gprice(회사가스 L당 단가), base(기준금), vatBase(부가세 기준 매출), feeRate(수수료율 %), refund(예전 L당 환급, 안 씀·지우지 않음), apay(실제지급액), avat(실제 부가세) } }`
+월별 정산값(`unhaeng.settle.v1`): `{ "2026-11": { ins, fine, union, gprice(회사가스 L당 단가), base(기준금), vatBase(부가세 기준 매출), feeRate(수수료율 %), goal(월 목표 입금액), refund(예전 L당 환급, 안 씀·지우지 않음), apay(실제지급액), avat(실제 부가세) } }`
+
+월 목표는 달별로 `settle`의 `goal`에 저장하고, 안 정한 달은 이전 달 → 없으면 `unhaeng.goal.v1`(예전 공통 목표, 지우지 않음) → 1,200만 순으로 써요.
 
 정산 기준(`unhaeng.rules.v1`): `{ base, vatBase, feeRate }` — 예전에 모든 달 공통으로 쓰던 값. 이제는 달별 값이 없는 달의 기본값으로만 써요. 백업에 `rules`로 들어가요 (없으면 기본값).
 

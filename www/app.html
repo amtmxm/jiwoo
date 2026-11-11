@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="app-version" content="24">
+<meta name="app-version" content="25">
 <title>운행일지</title>
 <style>
   :root {
@@ -426,11 +426,12 @@
   </div>
   <details class="adv" id="stAdv">
     <summary>정산 기준 바꾸기 (기준금·수수료)</summary>
-    <label for="rBaseIn">기준금 (원) · 모든 달에 적용</label>
+    <p class="hint" id="rNote">보고 있는 달에만 적용돼요. 따로 정하지 않은 다음 달들은 이 값을 이어서 써요.</p>
+    <label for="rBaseIn">기준금 (원) · 이 달 기준</label>
     <input id="rBaseIn" type="text" inputmode="numeric" autocomplete="off">
-    <label for="rVatBaseIn">부가세 기준 매출 (원) · 모든 달에 적용</label>
+    <label for="rVatBaseIn">부가세 기준 매출 (원) · 이 달 기준</label>
     <input id="rVatBaseIn" type="text" inputmode="numeric" autocomplete="off">
-    <label for="rFeeIn">수수료율 (%) · 모든 달에 적용</label>
+    <label for="rFeeIn">수수료율 (%) · 이 달 기준</label>
     <input id="rFeeIn" type="text" inputmode="decimal" autocomplete="off">
   </details>
     </div>
@@ -661,6 +662,13 @@
       if (Number.isFinite(rf) && rf > 0) r.refund = Math.round(rf * 1000) / 1000;
       const gp = Number(v.gprice);
       if (Number.isFinite(gp) && gp > 0) r.gprice = Math.round(gp * 1000) / 1000;
+      // 달마다 다른 정산 기준 (없으면 이전 달 → unhaeng.rules.v1 기본값)
+      for (const f of ['base', 'vatBase']) {
+        const n = Number(v[f]);
+        if (v[f] != null && Number.isFinite(n) && n >= 0) r[f] = Math.round(n);
+      }
+      const fr = Number(v.feeRate);
+      if (v.feeRate != null && Number.isFinite(fr) && fr >= 0 && fr <= 100) r.feeRate = Math.round(fr * 100) / 100;
       if (Object.keys(r).length) out[k] = r;
     }
     return out;
@@ -673,8 +681,8 @@
   function settingsFor(y, m) {
     const key = ymKey(y, m);
     const prev = Object.keys(settle).filter(k => k < key).sort().reverse();
-    const out = { ...SETTLE_DEF, fine: 0 };
-    for (const f of ['gprice', 'refund', 'ins', 'union']) {
+    const out = { ...SETTLE_DEF, fine: 0, base: rules.base, vatBase: rules.vatBase, feeRate: rules.feeRate };
+    for (const f of ['gprice', 'refund', 'ins', 'union', 'base', 'vatBase', 'feeRate']) {
       for (const k of prev) { if (settle[k][f] != null) { out[f] = settle[k][f]; break; } }
     }
     Object.assign(out, settle[key] || {});
@@ -730,9 +738,9 @@
   function settleCalc(t, s) {
     const sales = t.sumD * 10 / 9 + t.sumT;            // 회사매출 = 입금합×10/9 + 톨비합
     const gasNet = t.gc.l * s.gprice;                    // 회사가스비 = 회사가스(L) × L당 단가
-    const extra = sales - rules.base - gasNet;           // 추가입금분
-    const fee = sales * (rules.feeRate / 100);           // 수수료
-    const vat = (sales - rules.vatBase) * 0.1;           // 부가세 (엑셀의 성과금 9:1)
+    const extra = sales - s.base - gasNet;               // 추가입금분
+    const fee = sales * (s.feeRate / 100);               // 수수료
+    const vat = (sales - s.vatBase) * 0.1;               // 부가세 (엑셀의 성과금 9:1)
     const final = extra - s.ins - vat - s.fine - fee - s.union;  // 최종지급액
     const margin = t.sumD ? final / t.sumD : 0;          // 마진율 = 최종지급액 ÷ 입금합
     return { sales, gasNet, extra, fee, vat, final, margin };
@@ -836,6 +844,10 @@
     return {
       ins: parseWon($('sIns').value), fine: parseWon($('sFine').value), union: parseWon($('sUnion').value),
       gprice: parseL($('sGprice').value) || SETTLE_DEF.gprice,
+      // 정산 기준: 비우면 기본값
+      base: $('rBaseIn').value.trim() ? parseWon($('rBaseIn').value) : rules.base,
+      vatBase: $('rVatBaseIn').value.trim() ? parseWon($('rVatBaseIn').value) : rules.vatBase,
+      feeRate: (v => Number.isFinite(v) && v >= 0 && v <= 100 ? Math.round(v * 100) / 100 : rules.feeRate)(parseFloat($('rFeeIn').value)),
       apay: parseWon($('sApay').value), avat: parseWon($('sAvat').value)
     };
   }
@@ -855,9 +867,9 @@
       $('stPn').textContent = `일평균(${pj.work}일 기준)으로 남은 ${pj.remain}일${pj.off ? `(휴무 ${pj.off}일 제외)` : ''}을 채운 예상이에요`;
     }
     $('rSales').textContent = money(r.sales);
-    $('rBase').textContent = money(rules.base);
-    $('rFeeNote').textContent = `회사매출의 ${rules.feeRate}%`;
-    $('rVatNote').textContent = `(회사매출 − ${fmt(rules.vatBase)}) × 10%`;
+    $('rBase').textContent = money(s.base);
+    $('rFeeNote').textContent = `회사매출의 ${s.feeRate}%`;
+    $('rVatNote').textContent = `(회사매출 − ${fmt(s.vatBase)}) × 10%`;
     $('rGas').textContent = money(r.gasNet);
     $('rGasNote').textContent = `${fmtL(t.gc.l)}L × ${fmtL(s.gprice)}원`;
     $('rExtra').textContent = money(r.extra);
@@ -883,9 +895,9 @@
     setVal('sApay', s.apay ? fmt(s.apay) : '');
     setVal('sAvat', s.avat ? fmt(s.avat) : '');
     setVal('sGprice', String(s.gprice));
-    setVal('rBaseIn', fmt(rules.base));
-    setVal('rVatBaseIn', fmt(rules.vatBase));
-    setVal('rFeeIn', String(rules.feeRate));
+    setVal('rBaseIn', fmt(s.base));
+    setVal('rVatBaseIn', fmt(s.vatBase));
+    setVal('rFeeIn', String(s.feeRate));
     $('stNote').textContent = s._saved ? '' : '이 달 정산값을 아직 입력하지 않았어요. 지난달 값으로 계산 중이에요.';
     updateSettle();
   }
@@ -901,19 +913,9 @@
     $(id).addEventListener('input', ev => { fmtWonInput(ev.target); onSettleInput(); });
   }
   $('sGprice').addEventListener('input', ev => { fmtLiterInput(ev.target); onSettleInput(); });
-  // 정산 기준: 비우면 기본값으로 계산
-  function onRulesInput() {
-    const fr = parseFloat($('rFeeIn').value);
-    rules = normRules({
-      base: $('rBaseIn').value.trim() ? parseWon($('rBaseIn').value) : RULES_DEF.base,
-      vatBase: $('rVatBaseIn').value.trim() ? parseWon($('rVatBaseIn').value) : RULES_DEF.vatBase,
-      feeRate: Number.isFinite(fr) ? fr : RULES_DEF.feeRate
-    });
-    saveRules();
-    updateSettle();
-  }
-  for (const id of ['rBaseIn', 'rVatBaseIn']) $(id).addEventListener('input', ev => { fmtWonInput(ev.target); onRulesInput(); });
-  $('rFeeIn').addEventListener('input', ev => { ev.target.value = ev.target.value.replace(/[^0-9.]/g, ''); onRulesInput(); });
+  // 정산 기준도 달별로 저장 (다른 정산값과 같이 이 달에 저장, 안 정한 다음 달은 이어서 사용)
+  for (const id of ['rBaseIn', 'rVatBaseIn']) $(id).addEventListener('input', ev => { fmtWonInput(ev.target); onSettleInput(); });
+  $('rFeeIn').addEventListener('input', ev => { ev.target.value = ev.target.value.replace(/[^0-9.]/g, ''); onSettleInput(); });
 
   // 반기 부가세: 1~6월 합 / 7~12월 합 (확정된 달은 실제 금액, 나머지는 계산값)
   function renderVatHalf(sLive) {

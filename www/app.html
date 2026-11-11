@@ -3,12 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="app-version" content="32">
+<meta name="app-version" content="33">
 <title>운행일지</title>
 <!-- 패치노트: 버전 번호마다 바뀐 점을 짧게. app.html을 고칠 때마다 새 버전 줄을 맨 위에 추가하세요.
      앱이 새 버전 파일을 받으면 이 목록에서 "지금 버전보다 높은 것"만 골라 업데이트 창에 보여줘요. -->
 <script type="application/json" id="patchNotes">
 {
+  "33": ["입국 인원: 시간대별 예상 인원을 오늘 운항일 전체(새벽 4시 ~ 다음날 새벽 4시)로 표시", "입국장(B·C·D 등) 구분 표시 삭제, 내국인·외국인 숫자만", "지금 입국 중인 편별 인원 목록 추가 (외국인 많은 순, 출발지 표시)"],
   "32": ["항공편 목록에 오늘 운항편 전체 표시 (새벽 4시 ~ 다음날 새벽 4시), 열면 지금 시각 근처부터", "자정 넘어 뜨고 내리는 편에는 '다음날' 표시"],
   "31": ["출발편 카운터를 '1터 3번'처럼 번호만 표시", "출발편 상세: 터미널 칸에 카운터 번호 표시", "카운터 정보가 없는 항공사는 '1터 ㅡ 카운터정보없음'으로 표시"],
   "30": ["도착편: 아직 입국 인원이 잡히기 전인 편은 '인원 집계 전'으로 표시", "항공편 목록을 3시간 전부터 보여주고, 열면 지금 시각 근처 편부터 보이게", "항공편 화면 위쪽 새로고침 옆에 닫기 버튼 추가"],
@@ -245,6 +246,15 @@
   .paxtbl tr.cur td { color: var(--accent); font-weight: 800; }
   .paxtbl tr.past td { color: var(--muted); }
   .flsec { font-size: 14px; font-weight: 800; margin: 14px 0 6px; }
+  .paxscroll { max-height: 260px; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; padding: 0 8px; }
+  .paxscroll .paxtbl th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
+  .paxtbl .nd2 { font-style: normal; font-size: 10px; font-weight: 700; color: var(--toll); }
+  .paxrow { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+  .paxrow b { font-size: 15px; }
+  .paxrow small { color: var(--muted); font-size: 12px; margin-left: 4px; }
+  .paxn { text-align: right; font-size: 12px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .paxn span { display: block; }
+  .paxn b { color: var(--accent); font-size: 15px; }
   #flSearch[hidden] { display: none; }
   #flKeyBox input { width: 100%; padding: 12px; font-size: 14px; font-weight: 500; text-align: left; margin: 0 0 10px; }
 
@@ -1409,7 +1419,18 @@
         .then(list => list.map(c => ({ ...c, terno: c.terno || t })))));
     return parts.flat();
   }
-  const loadNotice = () => apiGet('passgrAnncmt/getPassgrAnncmt', { selectdate: 0, numOfRows: 30, pageNo: 1 });
+  // 입국장 예상 인원: 오늘(0)·내일(1)을 받아 운항일(새벽 4시 ~ 다음날 새벽 4시) 순서로 이어 붙임
+  async function loadNotice() {
+    const [d0, d1] = await Promise.all([0, 1].map(sd =>
+      apiGet('passgrAnncmt/getPassgrAnncmt', { selectdate: sd, numOfRows: 30, pageNo: 1 }).catch(() => [])));
+    const now = new Date(), today = ymdOf(now);
+    const hourOf = r => { const m = /^(\d{2})_/.exec(r.atime || ''); return m ? +m[1] : -1; };
+    const tag = (r, nd) => ({ ...r, _h: hourOf(r), _nd: nd });
+    // 새벽 4시 전이면 어제 운항일인데 어제 예고는 안 줘서, 오늘 하루치를 그대로 보여줌
+    if (now.getHours() < OP_START_H) return d0.map(r => tag(r, false)).filter(r => r._h >= 0);
+    return d0.filter(r => hourOf(r) >= OP_START_H && (!r.adate || r.adate === today)).map(r => tag(r, false))
+      .concat(d1.filter(r => hourOf(r) >= 0 && hourOf(r) < OP_START_H).map(r => tag(r, true)));
+  }
 
   function stClass(r) {
     if (/결항|회항/.test(r)) return 'bad';
@@ -1591,38 +1612,52 @@
     }
     return m;
   }
-  function renderPax(cong, notice) {
+  function renderPax(cong, notice, arrList) {
     const nowD = new Date();
     const ters = flTer ? [flTer] : ['T1', 'T2'];
     let html = '<div class="flsec">지금 입국 중 (도착 −2시간 ~ +2시간)</div><div class="paxbig">';
     for (const t of ['T1', 'T2']) {
       const list = (cong || []).filter(c => c.terno === t);
-      let k = 0, f = 0; const gates = {};
-      for (const c of list) { const n = numOf(c.korean) + numOf(c.foreigner); k += numOf(c.korean); f += numOf(c.foreigner); if (c.entrygate) gates[c.entrygate] = (gates[c.entrygate] || 0) + n; }
-      const gtxt = Object.keys(gates).sort().map(g => `${g} ${fmt(gates[g])}`).join(' · ');
-      html += `<div style="${ters.includes(t) ? '' : 'opacity:.45'}"><div class="l">${t === 'T1' ? '1터' : '2터'} · ${list.length}편</div><div class="v">${fmt(k + f)}명</div><div class="s">내국인 ${fmt(k)} · 외국인 ${fmt(f)}${gtxt ? `<br>${gtxt}` : ''}</div></div>`;
+      let k = 0, f = 0;
+      for (const c of list) { k += numOf(c.korean); f += numOf(c.foreigner); }
+      html += `<div style="${ters.includes(t) ? '' : 'opacity:.45'}"><div class="l">${t === 'T1' ? '1터' : '2터'} · ${list.length}편</div><div class="v">${fmt(k + f)}명</div><div class="s">내국인 ${fmt(k)} · 외국인 ${fmt(f)}</div></div>`;
     }
     html += '</div>';
     if (notice && notice.length) {
-      html += '<div class="flsec">오늘 시간대별 입국장 예상 인원</div><table class="paxtbl"><tr><th>시간</th>'
+      // 운항일 전체 시간대 (새벽 4시 ~ 다음날 새벽 4시), 표 안에서 지금 시간대로 스크롤
+      html += '<div class="flsec">오늘 시간대별 입국장 예상 인원</div><div class="paxscroll" id="paxScroll"><table class="paxtbl"><tr><th>시간</th>'
         + (ters.includes('T1') ? '<th>1터</th>' : '') + (ters.includes('T2') ? '<th>2터</th>' : '') + '</tr>';
+      const nowH = nowD.getHours();
       for (const r of notice) {
         const m = /^(\d{2})_(\d{2})$/.exec(r.atime || '');
         if (!m) continue;
-        const h = +m[1];
-        if (h < nowD.getHours() - 1) continue;   // 지난 시간대는 직전 1시간만 보여줌
-        const cls = h === nowD.getHours() ? 'cur' : (h < nowD.getHours() ? 'past' : '');
-        html += `<tr class="${cls}"><td>${m[1]}~${m[2]}시</td>`
+        const idx = (r._nd ? 24 : 0) + r._h;   // 다음날 새벽 시간대는 24시 뒤로
+        html += `<tr class="${idx === nowH ? 'cur' : idx < nowH ? 'past' : ''}"><td>${m[1]}~${m[2]}시${r._nd ? ' <i class="nd2">다음날</i>' : ''}</td>`
           + (ters.includes('T1') ? `<td>${fmt(numOf(r.t1egsum1))}</td>` : '')
           + (ters.includes('T2') ? `<td>${fmt(numOf(r.t2egsum1))}</td>` : '') + '</tr>';
       }
-      html += '</table><p class="hint" style="margin-top:8px">예상 인원은 인천공항이 미리 낸 예고 자료예요. 실제와 다를 수 있어요.</p>';
+      html += '</table></div><p class="hint" style="margin-top:8px">예상 인원은 인천공항이 미리 낸 예고 자료예요. 실제와 다를 수 있어요.</p>';
+    }
+    // 편별 입국 인원: 지금 입국장에 있는 편과 출발지 (외국인 많은 순)
+    const byId = {};
+    for (const f of arrList || []) byId[f.flightId] = f;
+    const flights = (cong || []).filter(c => ters.includes(c.terno))
+      .map(c => ({ c, k: numOf(c.korean), fr: numOf(c.foreigner) })).filter(x => x.k + x.fr > 0)
+      .sort((a, b) => b.fr - a.fr || b.k - a.k);
+    if (flights.length) {
+      html += '<div class="flsec">편별 입국 인원 (외국인 많은 순)</div>'
+        + flights.map(({ c, k, fr }) => {
+          const f = byId[c.flightid];
+          const city = f ? cityOf(f) : `${c.airport || ''}${AP_COUNTRY[c.airport] ? `(${AP_COUNTRY[c.airport]})` : ''}`;
+          return `<div class="paxrow"><div><b>${c.flightid || ''}</b><small>${f && f.airline ? f.airline : ''}</small><div class="flsub">출발 ${city} · ${c.terno === 'T2' ? '2터' : '1터'}</div></div>`
+            + `<div class="paxn"><span>외국인 <b>${fmt(fr)}</b></span><span>내국인 ${fmt(k)}</span></div></div>`;
+        }).join('');
     }
     return html;
   }
   async function renderFl(force) {
     const tab = flTab;
-    const need = tab === 'pax' ? ['cong', 'notice'] : tab === 'arr' ? ['arr', 'cong'] : ['dep'];
+    const need = tab === 'pax' ? ['cong', 'notice', 'arr'] : tab === 'arr' ? ['arr', 'cong'] : ['dep'];
     const fresh = k => flCache[k] && Date.now() - flCache[k].at < 60000;
     if (!apiKey()) { $('flInfo').textContent = ''; $('flList').innerHTML = `<div class="empty">${flErr('NOKEY')}</div>`; $('flKeyBox').open = true; return; }
     if (force || !need.every(fresh)) {
@@ -1632,6 +1667,7 @@
           if (!force && fresh(k)) return;
           const v = k === 'cong' ? await loadCongestion().catch(e => { if (tab === 'pax') throw e; return []; })
             : k === 'notice' ? await loadNotice().catch(() => [])
+            : tab === 'pax' ? await loadFlights(k).catch(() => [])   // 입국 인원 탭에서는 편 이름 찾기용이라 실패해도 계속
             : await loadFlights(k);
           flCache[k] = { at: Date.now(), v };
         }));
@@ -1654,7 +1690,7 @@
       + (tab === 'pax' ? '' : $('flSearch').value.trim() ? ` · 오늘 ${tab === 'arr' ? '도착' : '출발'}편 전체에서 검색`
         : ` · 오늘 ${tab === 'arr' ? '도착' : '출발'} 여객편 전체 (새벽 4시 ~ 다음날 새벽 4시)`);
     $('flSearch').hidden = tab === 'pax';
-    $('flList').innerHTML = tab === 'pax' ? renderPax(flCache.cong.v, flCache.notice.v)
+    $('flList').innerHTML = tab === 'pax' ? renderPax(flCache.cong.v, flCache.notice.v, flCache.arr && flCache.arr.v)
       : renderFlightList(tab, flCache[tab].v, tab === 'arr' ? paxByFlight(flCache.cong.v) : null);
     if (flJump) { flJump = false; jumpToNow(); }
   }
@@ -1663,7 +1699,12 @@
   function jumpToNow() {
     const sheet = $('flSheet');
     sheet.scrollTop = 0;
-    if (flTab === 'pax' || $('flSearch').value.trim()) return;
+    if (flTab === 'pax') {   // 입국 인원 탭: 예상 인원 표 안에서 지금 시간대가 보이게
+      const box = $('paxScroll'), cur = box && box.querySelector('tr.cur');
+      if (cur) box.scrollTop = Math.max(0, cur.offsetTop - 40);
+      return;
+    }
+    if ($('flSearch').value.trim()) return;
     const nowM = Date.now() / 60000 - 10;   // 10분 전 편부터
     const row = [...$('flList').querySelectorAll('.flrow')].find(r => +r.dataset.t >= nowM);
     if (!row) return;

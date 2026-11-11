@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="app-version" content="26">
+<meta name="app-version" content="27">
 <title>운행일지</title>
 <style>
   :root {
@@ -495,8 +495,8 @@
 </div>
 
 <div class="sheet" id="goalSheet">
-  <h2>월 목표액</h2>
-  <p class="hint">목표액까지 하루에 얼마를 벌어야 하는지 계산할 때 쓰는 월 입금 목표예요.</p>
+  <h2 id="goalTitle">월 목표액</h2>
+  <p class="hint">이 달에만 적용돼요. 따로 정하지 않은 다음 달들은 이 목표를 이어서 써요.</p>
   <label for="fGoal">목표 입금액 (원)</label>
   <input id="fGoal" type="text" inputmode="numeric" placeholder="12,000,000" autocomplete="off">
   <div class="btns">
@@ -667,6 +667,8 @@
         const n = Number(v[f]);
         if (v[f] != null && Number.isFinite(n) && n >= 0) r[f] = Math.round(n);
       }
+      const gl = Number(v.goal);
+      if (v.goal != null && Number.isFinite(gl) && gl > 0) r.goal = Math.round(gl);
       const fr = Number(v.feeRate);
       if (v.feeRate != null && Number.isFinite(fr) && fr >= 0 && fr <= 100) r.feeRate = Math.round(fr * 100) / 100;
       if (Object.keys(r).length) out[k] = r;
@@ -681,12 +683,12 @@
   function settingsFor(y, m) {
     const key = ymKey(y, m);
     const prev = Object.keys(settle).filter(k => k < key).sort().reverse();
-    const out = { ...SETTLE_DEF, fine: 0, base: rules.base, vatBase: rules.vatBase, feeRate: rules.feeRate };
-    for (const f of ['gprice', 'refund', 'ins', 'union', 'base', 'vatBase', 'feeRate']) {
+    const out = { ...SETTLE_DEF, fine: 0, base: rules.base, vatBase: rules.vatBase, feeRate: rules.feeRate, goal };
+    for (const f of ['gprice', 'refund', 'ins', 'union', 'base', 'vatBase', 'feeRate', 'goal']) {
       for (const k of prev) { if (settle[k][f] != null) { out[f] = settle[k][f]; break; } }
     }
     Object.assign(out, settle[key] || {});
-    out._saved = !!settle[key];
+    out._saved = !!settle[key] && Object.keys(settle[key]).some(f => f !== 'goal');   // 목표만 정한 달은 정산값 미입력으로 봄
     return out;
   }
 
@@ -800,6 +802,7 @@
     if ((!cur && !past) || (past && !work)) { el.hidden = true; return; }
     el.hidden = false;
 
+    const goal = settingsFor(year, month).goal;   // 달별 목표 (안 정한 달은 이전 달 → 예전 공통 목표)
     const remain = cur ? remainDays(year, month, nowD) : 0;
     const offN = cur ? dim - remainStart(year, month, nowD) + 1 - remain : 0;
     const avg = work ? sumD / work : 0;
@@ -826,7 +829,8 @@
     $('stNeed').innerHTML = html;
   }
   $('stNeed').onclick = () => {
-    $('fGoal').value = fmt(goal);
+    $('fGoal').value = fmt(settingsFor(year, month).goal);
+    $('goalTitle').textContent = `${month + 1}월 목표액`;
     $('scrim').classList.add('open');
     $('goalSheet').classList.add('open');
     setTimeout(() => $('fGoal').focus(), 250);
@@ -835,7 +839,9 @@
   $('goalSave').onclick = () => {
     const g = parseWon($('fGoal').value);
     if (!g) return toast('목표액을 입력하세요');
-    goal = g; saveGoal(); closeSheet(); render();
+    const k = ymKey(year, month);
+    settle[k] = { ...(settle[k] || {}), goal: g };   // 이 달 목표만 저장 (안 정한 다음 달은 이어서 사용)
+    saveSettle(); closeSheet(); render();
   };
   $('goalCancel').onclick = () => closeSheet();
 
@@ -871,7 +877,7 @@
     $('rFeeNote').textContent = `회사매출의 ${s.feeRate}%`;
     $('rVatNote').textContent = `(회사매출 − ${fmt(s.vatBase)}) × 10%`;
     $('rGas').textContent = money(r.gasNet);
-    $('rGasNote').textContent = `${fmtL(t.gc.l)}L × ${fmtL(s.gprice)}원`;
+    $('rGasNote').textContent = `${fmtL(t.gc.l)}L × ${fmtL(s.gprice)}원` + (s.gprice > 5000 ? ' · 단가가 너무 커요. 소수점(.)을 확인하세요' : '');
     $('rExtra').textContent = money(r.extra);
     $('rFee').textContent = money(r.fee);
     $('rVat').textContent = money(r.vat);
@@ -885,8 +891,16 @@
     renderVatHalf(s);
   }
   // 화면 아래 정산서: 현재 보고 있는 달의 값으로 채움 (입력 중인 칸은 건드리지 않음)
+  let settleYm = '';
   function renderSettle() {
     const s = settingsFor(year, month);
+    // 달이 바뀌었는데 입력칸에 커서가 남아 있으면, 그 칸이 이전 달 숫자를 들고 와서 다른 달 계산에 쓰이던 문제 방지
+    const ym = ymKey(year, month);
+    if (ym !== settleYm) {
+      settleYm = ym;
+      const a = document.activeElement;
+      if (a && a.tagName === 'INPUT' && $('below').contains(a)) a.blur();
+    }
     $('stTitle').textContent = `${year === new Date().getFullYear() ? '' : year + '년 '}${month + 1}월 정산서`;
     const setVal = (id, v) => { const el = $(id); if (document.activeElement !== el) el.value = v; };
     setVal('sIns', s.ins ? fmt(s.ins) : '');
@@ -965,7 +979,8 @@
     setKeepCursor(el, n ? fmt(n) : '', /[0-9]/g);
   }
   function fmtLiterInput(el) {
-    let v = el.value.replace(/[^0-9.]/g, '');
+    // 숫자 키패드의 쉼표(,)를 소수점으로 누르는 경우가 있어서 '.'로 바꿈 (리터·단가에는 천 단위 쉼표가 없음)
+    let v = el.value.replace(/,/g, '.').replace(/[^0-9.]/g, '');
     const i = v.indexOf('.');
     if (i >= 0) v = v.slice(0, i + 1) + v.slice(i + 1).replace(/\./g, '').slice(0, 3);
     setKeepCursor(el, v, /[0-9.]/g);
